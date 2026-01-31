@@ -2,8 +2,10 @@ import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
 import * as SecureStore from "expo-secure-store";
 
+const AUTH_URL = process.env.EXPO_PUBLIC_AUTH_URL || "http://localhost:8081";
+
 export const authClient = createAuthClient({
-  baseURL: "http://100.65.54.247:8081",
+  baseURL: AUTH_URL,
   disableDefaultFetchPlugins: true,
   plugins: [
     expoClient({

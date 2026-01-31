@@ -21,6 +21,11 @@ import { authClient } from "@/lib/auth-client";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import {
+  uploadImageToStorage,
+  createImagePair,
+  updateImagePairStatus,
+} from "@/lib/supabase";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
@@ -124,6 +129,7 @@ function SuccessToast({ onDone, metadata }: { onDone: () => void; metadata?: Clo
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
+  const { data: session } = authClient.useSession();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null);
   const [cloakedImage, setCloakedImage] = useState<string | null>(null);
@@ -162,10 +168,38 @@ export default function HomeScreen() {
   const handleCloak = async () => {
     if (!selectedImage || !selectedImageBase64) return;
 
+    const userId = session?.user?.id;
+
     if (Platform.OS === "ios") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsScanning(true);
 
+    let imagePairId: string | null = null;
+
     try {
+      // Step 1: Upload original image to Supabase Storage (if user is logged in)
+      if (userId) {
+        const fileId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        const originalPath = `originals/${userId}/${fileId}.png`;
+
+        const uploadResult = await uploadImageToStorage(
+          selectedImageBase64,
+          originalPath,
+          "image/png"
+        );
+
+        if ("error" in uploadResult) {
+          console.warn("Failed to upload original:", uploadResult.error);
+        } else {
+          // Step 2: Create database record
+          const imagePair = await createImagePair(userId, uploadResult.url);
+          if (imagePair) {
+            imagePairId = imagePair.id;
+            await updateImagePairStatus(imagePairId, "processing");
+          }
+        }
+      }
+
+      // Step 3: Call backend to cloak the image
       const formData = new FormData();
       formData.append("image", selectedImageBase64);
       formData.append("strength", strength);
@@ -181,11 +215,36 @@ export default function HomeScreen() {
       }
 
       const data: CloakResult = await response.json();
+
+      // Step 4: Upload cloaked image to Supabase Storage (if user is logged in)
+      if (userId && imagePairId) {
+        const fileId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        const protectedPath = `protected/${userId}/${fileId}.png`;
+
+        const protectedUpload = await uploadImageToStorage(
+          data.cloaked_image,
+          protectedPath,
+          "image/png"
+        );
+
+        if ("url" in protectedUpload) {
+          // Step 5: Update database record with protected URL
+          await updateImagePairStatus(imagePairId, "completed", protectedUpload.url);
+        } else {
+          await updateImagePairStatus(imagePairId, "failed");
+        }
+      }
+
       setCloakedImage(`data:image/png;base64,${data.cloaked_image}`);
       setMetadata(data.metadata);
       setShowSuccess(true);
       if (Platform.OS === "ios") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
+      // Update status to failed if we have a record
+      if (imagePairId) {
+        await updateImagePairStatus(imagePairId, "failed");
+      }
+
       Alert.alert(
         "Error",
         error instanceof Error ? error.message : "Failed to process image"
