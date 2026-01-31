@@ -9,12 +9,33 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 // Storage bucket name
 export const IMAGES_BUCKET = "images";
 
+// Ensure the bucket exists (call once on first upload)
+let bucketInitialized = false;
+async function ensureBucketExists() {
+  if (bucketInitialized) return;
+
+  const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+  const bucketExists = buckets?.some((b) => b.name === IMAGES_BUCKET);
+
+  if (!bucketExists) {
+    await supabaseAdmin.storage.createBucket(IMAGES_BUCKET, {
+      public: true,
+      fileSizeLimit: 10 * 1024 * 1024, // 10MB
+    });
+  }
+
+  bucketInitialized = true;
+}
+
 // Storage helper functions
 export async function uploadImage(
   file: Buffer,
   path: string,
   contentType: string
 ): Promise<{ url: string } | { error: string }> {
+  // Ensure bucket exists before uploading
+  await ensureBucketExists();
+
   const { data, error } = await supabaseAdmin.storage
     .from(IMAGES_BUCKET)
     .upload(path, file, {
