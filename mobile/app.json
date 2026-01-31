@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "scheme": "myapp",
+    "web": {
+      "output": "server"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "name": "mobile",
+    "slug": "mobile"
+  }
+}
