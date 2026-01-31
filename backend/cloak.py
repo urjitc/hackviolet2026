@@ -235,7 +235,7 @@ def face_targeted_attack(
                 break
             else:
                 # Increase noise for next iteration
-                noise_scale *= 1.2
+                noise_scale = min(noise_scale * 1.2, epsilon * 2)  # Cap at 2x epsilon
 
         # Apply the final noised face region
         img_float[y1:y2, x1:x2] = face_region
@@ -254,7 +254,7 @@ def face_targeted_attack(
         "faces_detected_before": len(faces),
         "faces_detected_after": len(final_faces),
         "protection_successful": protection_successful,
-        "iterations_used": iteration + 1 if 'iteration' in dir() else max_iterations,
+        "iterations_used": iteration + 1 if max_iterations > 0 and len(faces) > 0 else 0,
     }
 
     if protection_successful:

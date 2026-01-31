@@ -28,6 +28,9 @@ import {
 } from "@/lib/supabase";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+if (__DEV__ && !process.env.EXPO_PUBLIC_BACKEND_URL) {
+  console.warn("EXPO_PUBLIC_BACKEND_URL not configured - localhost won't work on physical devices");
+}
 
 type CloakingStrength = "light" | "medium" | "strong";
 
@@ -200,13 +203,17 @@ export default function HomeScreen() {
       }
 
       // Step 3: Call backend to cloak the image
-      const formData = new FormData();
-      formData.append("image", selectedImageBase64);
-      formData.append("strength", strength);
+      // Use URLSearchParams for application/x-www-form-urlencoded format
+      const formBody = new URLSearchParams();
+      formBody.append("image", selectedImageBase64);
+      formBody.append("strength", strength);
 
       const response = await fetch(`${BACKEND_URL}/cloak/base64`, {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formBody.toString(),
       });
 
       if (!response.ok) {

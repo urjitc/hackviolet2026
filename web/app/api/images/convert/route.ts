@@ -5,6 +5,9 @@ import { eq } from "drizzle-orm";
 import { uploadImage, downloadImage, getPathFromUrl } from "@/lib/supabase";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+if (!process.env.BACKEND_URL) {
+  console.warn("BACKEND_URL not set, defaulting to localhost:8000");
+}
 
 export async function POST(request: NextRequest) {
   let imagePairId: string | undefined;
