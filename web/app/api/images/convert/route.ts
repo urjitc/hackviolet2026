@@ -67,13 +67,16 @@ export async function POST(request: NextRequest) {
     const base64Image = Buffer.from(arrayBuffer).toString("base64");
 
     // Call the Python cloaking backend
-    const formData = new FormData();
-    formData.append("image", base64Image);
-    formData.append("strength", strength);
+    const formBody = new URLSearchParams();
+    formBody.append("image", base64Image);
+    formBody.append("strength", strength);
 
     const cloakResponse = await fetch(`${BACKEND_URL}/cloak/base64`, {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formBody.toString(),
     });
 
     if (!cloakResponse.ok) {
