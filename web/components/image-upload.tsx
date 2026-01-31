@@ -32,14 +32,92 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      uploadFile(file);
-    }
-  }, []);
+  const pollForCompletion = useCallback(
+    async (id: string) => {
+      const maxAttempts = 30;
+      let attempts = 0;
+
+      const poll = async () => {
+        attempts++;
+        try {
+          const response = await fetch(`/api/images/${id}`);
+          const data = await response.json();
+
+          if (data.status === "completed" || data.status === "failed") {
+            setImagePair(data);
+            if (data.status === "completed") {
+              onUploadComplete?.();
+            }
+            return;
+          }
+
+          if (attempts < maxAttempts) {
+            setTimeout(poll, 1000);
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      };
+
+      poll();
+    },
+    [onUploadComplete]
+  );
+
+  const uploadFile = useCallback(
+    async (file: File) => {
+      const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+      if (!allowedTypes.includes(file.type)) {
+        setError("Invalid file type. Please upload PNG, JPEG, or WEBP.");
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        setError("File too large. Maximum size is 10MB.");
+        return;
+      }
+
+      setError(null);
+      setIsUploading(true);
+      setImagePair(null);
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("/api/images/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Upload failed");
+        }
+
+        setImagePair(data);
+        pollForCompletion(data.id);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed");
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [pollForCompletion]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        uploadFile(file);
+      }
+    },
+    [uploadFile]
+  );
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,80 +126,8 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
         uploadFile(file);
       }
     },
-    []
+    [uploadFile]
   );
-
-  const uploadFile = async (file: File) => {
-    // Client-side validation
-    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      setError("Invalid file type. Please upload PNG, JPEG, or WEBP.");
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File too large. Maximum size is 10MB.");
-      return;
-    }
-
-    setError(null);
-    setIsUploading(true);
-    setImagePair(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch("/api/images/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Upload failed");
-      }
-
-      setImagePair(data);
-
-      // Poll for conversion completion
-      pollForCompletion(data.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const pollForCompletion = async (id: string) => {
-    const maxAttempts = 30;
-    let attempts = 0;
-
-    const poll = async () => {
-      attempts++;
-      try {
-        const response = await fetch(`/api/images/${id}`);
-        const data = await response.json();
-
-        if (data.status === "completed" || data.status === "failed") {
-          setImagePair(data);
-          if (data.status === "completed") {
-            onUploadComplete?.();
-          }
-          return;
-        }
-
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 1000);
-        }
-      } catch (err) {
-        console.error("Polling error:", err);
-      }
-    };
-
-    poll();
-  };
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -202,6 +208,7 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
                   Original
                 </h3>
                 <div className="border rounded-lg overflow-hidden bg-muted/50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imagePair.originalUrl}
                     alt="Original"
@@ -217,6 +224,7 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
                 </h3>
                 <div className="border rounded-lg overflow-hidden bg-muted/50 min-h-32 flex items-center justify-center">
                   {imagePair.protectedUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={imagePair.protectedUrl}
                       alt="Protected"

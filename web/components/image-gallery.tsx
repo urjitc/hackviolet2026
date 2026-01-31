@@ -128,6 +128,7 @@ export function ImageGallery({ refreshTrigger }: ImageGalleryProps) {
       {images.map((image) => (
         <Card key={image.id} className="overflow-hidden">
           <div className="aspect-square relative bg-muted">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={image.protectedUrl || image.originalUrl}
               alt="Protected image"
