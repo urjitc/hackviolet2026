@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/src/db/drizzle";
 import { imagePairs } from "@/auth-schema";
+import { eq } from "drizzle-orm";
 import { uploadImage } from "@/lib/supabase";
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
@@ -74,8 +75,8 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    // Call conversion endpoint (fire and forget for now)
-    // In production, you might want to use a queue or background job
+    // Trigger conversion asynchronously
+    // If trigger fails, mark as failed so user gets feedback
     const baseUrl = request.nextUrl.origin;
     fetch(`${baseUrl}/api/images/convert`, {
       method: "POST",
@@ -83,8 +84,17 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ imagePairId: imagePair.id }),
-    }).catch((err) => {
+    }).catch(async (err) => {
       console.error("Failed to trigger conversion:", err);
+      // Update status to failed so polling shows error to user
+      try {
+        await db
+          .update(imagePairs)
+          .set({ status: "failed" })
+          .where(eq(imagePairs.id, imagePair.id));
+      } catch (dbErr) {
+        console.error("Failed to update status after conversion trigger error:", dbErr);
+      }
     });
 
     return NextResponse.json({

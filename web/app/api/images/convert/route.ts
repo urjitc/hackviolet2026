@@ -7,8 +7,12 @@ import { uploadImage, downloadImage, getPathFromUrl } from "@/lib/supabase";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 export async function POST(request: NextRequest) {
+  let imagePairId: string | undefined;
+
   try {
-    const { imagePairId, strength = "medium" } = await request.json();
+    const body = await request.json();
+    imagePairId = body.imagePairId;
+    const strength = body.strength || "medium";
 
     if (!imagePairId) {
       return NextResponse.json(
@@ -66,7 +70,8 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await downloadResult.data.arrayBuffer();
     const base64Image = Buffer.from(arrayBuffer).toString("base64");
 
-    // Call the Python cloaking backend
+    // Call the Python cloaking backend with timeout
+    // Using URLSearchParams because FastAPI Form() expects application/x-www-form-urlencoded
     const formBody = new URLSearchParams();
     formBody.append("image", base64Image);
     formBody.append("strength", strength);
@@ -77,6 +82,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: formBody.toString(),
+      signal: AbortSignal.timeout(60000), // 60 second timeout for large images
     });
 
     if (!cloakResponse.ok) {
@@ -136,6 +142,27 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Conversion error:", error);
+
+    // Mark as failed in database so polling shows error to user
+    if (imagePairId) {
+      try {
+        await db
+          .update(imagePairs)
+          .set({ status: "failed" })
+          .where(eq(imagePairs.id, imagePairId));
+      } catch (dbErr) {
+        console.error("Failed to update status after error:", dbErr);
+      }
+    }
+
+    // Handle timeout errors specifically
+    if (error instanceof Error && error.name === "TimeoutError") {
+      return NextResponse.json(
+        { error: "Backend processing timed out. The image may be too large or the server is busy." },
+        { status: 504 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

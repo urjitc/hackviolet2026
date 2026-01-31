@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,22 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
   const [error, setError] = useState<string | null>(null);
   const [imagePair, setImagePair] = useState<ImagePair | null>(null);
 
+  // Track polling state for cleanup
+  const pollingRef = useRef<{ active: boolean; timeoutId: NodeJS.Timeout | null }>({
+    active: false,
+    timeoutId: null,
+  });
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      pollingRef.current.active = false;
+      if (pollingRef.current.timeoutId) {
+        clearTimeout(pollingRef.current.timeoutId);
+      }
+    };
+  }, []);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -34,28 +50,52 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
 
   const pollForCompletion = useCallback(
     async (id: string) => {
-      const maxAttempts = 30;
+      const maxAttempts = 60; // Increased to 60 seconds
       let attempts = 0;
 
+      // Mark polling as active
+      pollingRef.current.active = true;
+
       const poll = async () => {
+        // Check if component is still mounted
+        if (!pollingRef.current.active) {
+          return;
+        }
+
         attempts++;
         try {
           const response = await fetch(`/api/images/${id}`);
+
+          if (!response.ok) {
+            throw new Error("Failed to fetch image status");
+          }
+
           const data = await response.json();
 
           if (data.status === "completed" || data.status === "failed") {
             setImagePair(data);
             if (data.status === "completed") {
               onUploadComplete?.();
+            } else if (data.status === "failed") {
+              setError("Image conversion failed. Please try again.");
             }
+            pollingRef.current.active = false;
             return;
           }
 
-          if (attempts < maxAttempts) {
-            setTimeout(poll, 1000);
+          if (attempts < maxAttempts && pollingRef.current.active) {
+            pollingRef.current.timeoutId = setTimeout(poll, 1000);
+          } else if (attempts >= maxAttempts) {
+            // Timeout reached - show error to user
+            setError("Conversion is taking longer than expected. Please refresh and check your image history.");
+            setImagePair((prev) => prev ? { ...prev, status: "failed" } : null);
+            pollingRef.current.active = false;
           }
         } catch (err) {
           console.error("Polling error:", err);
+          // Show error to user instead of silently failing
+          setError("Failed to check conversion status. Please refresh the page.");
+          pollingRef.current.active = false;
         }
       };
 
