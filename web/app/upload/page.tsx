@@ -30,7 +30,7 @@ export default function UploadPage() {
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <p className="font-handwriting text-2xl text-muted-foreground">loading...</p>
       </div>
     );
   }
@@ -40,11 +40,11 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
       <header className="border-b">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">DeepGuard</h1>
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold">Cloaked</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
               Welcome, {session.user?.name || session.user?.email}
@@ -57,31 +57,20 @@ export default function UploadPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 p-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold">Protect Your Image</h2>
-            <p className="text-muted-foreground mt-2">
-              Upload an image to add invisible protection against deepfake usage.
-            </p>
-          </div>
+      <main className="flex-1 p-6 md:p-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Upload Section */}
+          <section className="py-8 md:py-12">
+            <ImageUpload onUploadComplete={handleUploadComplete} />
+          </section>
 
-          <ImageUpload onUploadComplete={handleUploadComplete} />
-
-          <div className="mt-8 p-4 bg-muted/50 rounded-lg">
-            <h3 className="font-semibold mb-2">How it works</h3>
-            <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-              <li>Upload your original image</li>
-              <li>Our system processes the image and adds invisible adversarial data</li>
-              <li>Download the protected version - it looks identical but is resistant to deepfake manipulation</li>
-            </ol>
-          </div>
-
-          {/* Image History Gallery */}
-          <div className="mt-12">
-            <h3 className="text-2xl font-bold mb-4">Your Protected Images</h3>
+          {/* Gallery Section */}
+          <section className="py-8 border-t">
+            <h2 className="font-handwriting text-3xl md:text-4xl text-center mb-8 text-foreground/80">
+              your protected photos
+            </h2>
             <ImageGallery refreshTrigger={refreshTrigger} />
-          </div>
+          </section>
         </div>
       </main>
     </div>

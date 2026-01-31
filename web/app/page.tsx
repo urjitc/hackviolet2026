@@ -30,7 +30,7 @@ export default function HomePage() {
       {/* Header */}
       <header className="border-b">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">DeepGuard</h1>
+          <h1 className="text-xl font-bold">Cloaked</h1>
           <div className="flex gap-2">
             <Button variant="ghost" asChild>
               <Link href="/sign-in">Sign In</Link>
@@ -46,11 +46,11 @@ export default function HomePage() {
       <main className="flex-1 flex items-center justify-center p-8">
         <div className="max-w-2xl text-center space-y-6">
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Protect Your Images from Deepfakes
+            Cloak Your Photos from AI
           </h2>
           <p className="text-xl text-muted-foreground">
-            Add invisible adversarial protection to your photos. They look identical
-            to the human eye, but are resistant to AI manipulation and deepfake generation.
+            Add invisible protection to your photos. They look identical to the human eye,
+            but are resistant to AI manipulation and deepfake generation.
           </p>
           <div className="flex gap-4 justify-center pt-4">
             <Button size="lg" asChild>
@@ -70,15 +70,15 @@ export default function HomePage() {
               </p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50">
-              <h3 className="font-semibold mb-2">Protect</h3>
+              <h3 className="font-semibold mb-2">Cloak</h3>
               <p className="text-sm text-muted-foreground">
-                Our system adds invisible adversarial data that confuses AI models.
+                Our system adds an invisible cloak that confuses AI models.
               </p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50">
               <h3 className="font-semibold mb-2">Download</h3>
               <p className="text-sm text-muted-foreground">
-                Get your protected image that looks identical but resists manipulation.
+                Get your cloaked image that looks identical but resists AI manipulation.
               </p>
             </div>
           </div>

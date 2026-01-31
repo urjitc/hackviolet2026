@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface ImagePair {
@@ -50,14 +49,12 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
 
   const pollForCompletion = useCallback(
     async (id: string) => {
-      const maxAttempts = 60; // Increased to 60 seconds
+      const maxAttempts = 60;
       let attempts = 0;
 
-      // Mark polling as active
       pollingRef.current.active = true;
 
       const poll = async () => {
-        // Check if component is still mounted
         if (!pollingRef.current.active) {
           return;
         }
@@ -86,14 +83,12 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
           if (attempts < maxAttempts && pollingRef.current.active) {
             pollingRef.current.timeoutId = setTimeout(poll, 1000);
           } else if (attempts >= maxAttempts) {
-            // Timeout reached - show error to user
             setError("Conversion is taking longer than expected. Please refresh and check your image history.");
             setImagePair((prev) => prev ? { ...prev, status: "failed" } : null);
             pollingRef.current.active = false;
           }
         } catch (err) {
           console.error("Polling error:", err);
-          // Show error to user instead of silently failing
           setError("Failed to check conversion status. Please refresh the page.");
           pollingRef.current.active = false;
         }
@@ -169,137 +164,150 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
     [uploadFile]
   );
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      processing: "bg-blue-100 text-blue-800",
-      completed: "bg-green-100 text-green-800",
-      failed: "bg-red-100 text-red-800",
-    };
+  const getHandwrittenCaption = () => {
+    if (isUploading) return "uploading...";
+    if (imagePair?.status === "processing" || imagePair?.status === "pending") return "working some magic...";
+    if (imagePair?.status === "completed") return "all done! ✓";
+    if (imagePair?.status === "failed") return "oops, something went wrong";
+    return "drop your photo here ↑";
+  };
 
-    return (
-      <span
-        className={cn(
-          "px-2 py-1 rounded-full text-xs font-medium",
-          styles[status] || styles.pending
-        )}
-      >
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    );
+  const resetUpload = () => {
+    setImagePair(null);
+    setError(null);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Upload Zone */}
+    <div className="flex flex-col items-center">
+      {/* Polaroid Frame */}
       <div
+        className={cn(
+          "polaroid polaroid-lg polaroid-tilt cursor-pointer transition-all duration-300",
+          isDragging && "scale-105 shadow-xl"
+        )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={cn(
-          "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
-          isDragging
-            ? "border-primary bg-primary/5"
-            : "border-muted-foreground/25 hover:border-primary/50",
-          isUploading && "opacity-50 cursor-not-allowed"
-        )}
       >
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={handleFileSelect}
-          disabled={isUploading}
+          disabled={isUploading || imagePair?.status === "processing"}
           className="hidden"
           id="file-upload"
         />
+
+        {/* Photo Area */}
         <label
           htmlFor="file-upload"
-          className="cursor-pointer flex flex-col items-center gap-2"
+          className={cn(
+            "block w-64 h-64 md:w-80 md:h-80 cursor-pointer transition-all duration-200",
+            "flex items-center justify-center",
+            imagePair?.originalUrl
+              ? "bg-muted"
+              : isDragging
+                ? "bg-primary/10 border-2 border-dashed border-primary"
+                : "bg-muted/70 hover:bg-muted",
+            (isUploading || imagePair?.status === "processing") && "cursor-wait"
+          )}
         >
-          <div className="text-4xl">📷</div>
-          <p className="text-lg font-medium">
-            {isUploading ? "Uploading..." : "Drop an image here or click to upload"}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            PNG, JPEG, or WEBP up to 10MB
-          </p>
+          {imagePair?.protectedUrl ? (
+            // Show protected image when complete
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imagePair.protectedUrl}
+              alt="Protected"
+              className="w-full h-full object-cover"
+            />
+          ) : imagePair?.originalUrl ? (
+            // Show original while processing
+            <div className="relative w-full h-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePair.originalUrl}
+                alt="Original"
+                className={cn(
+                  "w-full h-full object-cover",
+                  imagePair.status === "processing" && "opacity-70"
+                )}
+              />
+              {(imagePair.status === "processing" || imagePair.status === "pending") && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+          ) : (
+            // Empty state
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <svg
+                className="w-16 h-16 opacity-40"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <span className="text-sm">
+                {isUploading ? "Uploading..." : "Click or drag"}
+              </span>
+            </div>
+          )}
         </label>
+
+        {/* Handwritten Caption Area */}
+        <div className="mt-3 text-center">
+          <p className="font-handwriting text-xl md:text-2xl text-foreground/80">
+            {getHandwrittenCaption()}
+          </p>
+        </div>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm max-w-sm text-center">
           {error}
         </div>
       )}
 
-      {/* Results */}
-      {imagePair && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Image Protection Result</CardTitle>
-            {getStatusBadge(imagePair.status)}
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Original Image */}
-              <div className="space-y-2">
-                <h3 className="font-medium text-sm text-muted-foreground">
-                  Original
-                </h3>
-                <div className="border rounded-lg overflow-hidden bg-muted/50">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imagePair.originalUrl}
-                    alt="Original"
-                    className="w-full h-auto object-contain max-h-64"
-                  />
-                </div>
-              </div>
+      {/* Action Buttons */}
+      {imagePair?.status === "completed" && imagePair.protectedUrl && (
+        <div className="mt-6 flex gap-3">
+          <Button asChild>
+            <a
+              href={imagePair.protectedUrl}
+              download="protected-image"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Download Protected
+            </a>
+          </Button>
+          <Button variant="outline" onClick={resetUpload}>
+            Upload Another
+          </Button>
+        </div>
+      )}
 
-              {/* Protected Image */}
-              <div className="space-y-2">
-                <h3 className="font-medium text-sm text-muted-foreground">
-                  Protected
-                </h3>
-                <div className="border rounded-lg overflow-hidden bg-muted/50 min-h-32 flex items-center justify-center">
-                  {imagePair.protectedUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={imagePair.protectedUrl}
-                      alt="Protected"
-                      className="w-full h-auto object-contain max-h-64"
-                    />
-                  ) : (
-                    <div className="text-muted-foreground text-sm p-4">
-                      {imagePair.status === "processing"
-                        ? "Processing..."
-                        : imagePair.status === "failed"
-                        ? "Conversion failed"
-                        : "Waiting for conversion..."}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+      {imagePair?.status === "failed" && (
+        <div className="mt-6">
+          <Button variant="outline" onClick={resetUpload}>
+            Try Again
+          </Button>
+        </div>
+      )}
 
-            {/* Download Button */}
-            {imagePair.protectedUrl && (
-              <div className="mt-4 flex justify-end">
-                <Button asChild>
-                  <a
-                    href={imagePair.protectedUrl}
-                    download="protected-image"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Download Protected Image
-                  </a>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* File type hint */}
+      {!imagePair && !error && (
+        <p className="mt-4 text-xs text-muted-foreground">
+          PNG, JPEG, or WEBP up to 10MB
+        </p>
       )}
     </div>
   );

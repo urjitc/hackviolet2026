@@ -124,3 +124,64 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Handwriting font utility */
+.font-handwriting {
+  font-family: var(--font-handwriting), cursive;
+}
+
+/* Polaroid frame styling */
+.polaroid {
+  background: white;
+  padding: 0.75rem 0.75rem 2.5rem 0.75rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  border-radius: 2px;
+}
+
+.polaroid-lg {
+  padding: 1rem 1rem 3.5rem 1rem;
+}
+
+.polaroid-tilt {
+  transform: rotate(-3deg);
+  transition: transform 0.3s ease;
+}
+
+.polaroid-tilt:hover {
+  transform: rotate(0deg) scale(1.02);
+}
+
+/* Clothesline styling */
+.clothesline {
+  position: relative;
+  padding-top: 28px;
+}
+
+.clothesline::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(to bottom, #555 0%, #333 50%, #555 100%);
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Hanging polaroid animation */
+.hanging-polaroid {
+  animation: swing 4s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+@keyframes swing {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+/* Stagger animation delays for organic feel */
+.hanging-polaroid:nth-child(2n) { animation-delay: -1s; }
+.hanging-polaroid:nth-child(3n) { animation-delay: -2s; }
+.hanging-polaroid:nth-child(4n) { animation-delay: -0.5s; }
+.hanging-polaroid:nth-child(5n) { animation-delay: -1.5s; }
