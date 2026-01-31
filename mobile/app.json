@@ -10,6 +10,18 @@
       "expo-web-browser"
     ],
     "name": "mobile",
-    "slug": "mobile"
+    "slug": "mobile",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ccd428c5-ac9b-4ab1-8919-f52f1909470f"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.urjit.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
   }
 }

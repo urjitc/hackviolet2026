@@ -17,7 +17,10 @@ export const auth = betterAuth({
   },
   plugins: [expo()],
   socialProviders: {},
-  trustedOrigins: ["exp://", "withbetterauth://"],
+  trustedOrigins: [
+    "myapp://",
+    ...(process.env.NODE_ENV === "development" ? ["exp://", "exp://**"] : []),
+  ],
   logger: {
     log: (level, message, ...args) => {
       console.log(`${level}: ${message}`);
