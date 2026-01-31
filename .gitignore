@@ -31,6 +31,15 @@
 /mobile/dist/
 /mobile/.expo-shared/
 
+# backend (python)
+/backend/venv/
+/backend/__pycache__/
+/backend/*.pyc
+/backend/uploads/*
+/backend/results/*
+!/backend/uploads/.gitkeep
+!/backend/results/.gitkeep
+
 # misc
 .DS_Store
 *.pem
