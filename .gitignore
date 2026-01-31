@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/web/node_modules
+/mobile/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -16,9 +18,18 @@
 # next.js
 /.next/
 /out/
+/web/.next/
+/web/out/
 
 # production
 /build
+/web/build
+/mobile/build
+
+# expo (mobile)
+/mobile/.expo/
+/mobile/dist/
+/mobile/.expo-shared/
 
 # misc
 .DS_Store
