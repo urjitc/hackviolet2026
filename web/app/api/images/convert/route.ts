@@ -4,20 +4,11 @@ import { imagePairs } from "@/auth-schema";
 import { eq } from "drizzle-orm";
 import { uploadImage, downloadImage, getPathFromUrl } from "@/lib/supabase";
 
-/**
- * PLACEHOLDER CONVERSION ENDPOINT
- *
- * This endpoint simulates the image protection/conversion process.
- * In the real implementation, this will:
- * 1. Download the original image
- * 2. Apply adversarial perturbations to prevent deepfake usage
- * 3. Upload the protected image
- *
- * For now, it just copies the original as the "protected" version.
- */
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+
 export async function POST(request: NextRequest) {
   try {
-    const { imagePairId } = await request.json();
+    const { imagePairId, strength = "medium" } = await request.json();
 
     if (!imagePairId) {
       return NextResponse.json(
@@ -45,9 +36,6 @@ export async function POST(request: NextRequest) {
       .set({ status: "processing" })
       .where(eq(imagePairs.id, imagePairId));
 
-    // Simulate processing delay (1-2 seconds)
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
     // Get the storage path from the original URL
     const originalPath = getPathFromUrl(imagePair.originalUrl);
     if (!originalPath) {
@@ -74,20 +62,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // PLACEHOLDER: In the real implementation, apply adversarial protection here
-    // For now, we just use the original image as-is
-    const protectedImageData = downloadResult.data;
+    // Convert blob to base64 for the cloaking API
+    const arrayBuffer = await downloadResult.data.arrayBuffer();
+    const base64Image = Buffer.from(arrayBuffer).toString("base64");
+
+    // Call the Python cloaking backend
+    const formData = new FormData();
+    formData.append("image", base64Image);
+    formData.append("strength", strength);
+
+    const cloakResponse = await fetch(`${BACKEND_URL}/cloak/base64`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!cloakResponse.ok) {
+      const errorData = await cloakResponse.json().catch(() => ({}));
+      await db
+        .update(imagePairs)
+        .set({ status: "failed" })
+        .where(eq(imagePairs.id, imagePairId));
+      return NextResponse.json(
+        { error: `Cloaking failed: ${errorData.detail || "Unknown error"}` },
+        { status: 500 }
+      );
+    }
+
+    const cloakData = await cloakResponse.json();
+
+    // Decode the base64 cloaked image
+    const cloakedBuffer = Buffer.from(cloakData.cloaked_image, "base64");
 
     // Generate protected image path
     const protectedPath = originalPath.replace("originals/", "protected/");
 
-    // Upload the "protected" image
-    const arrayBuffer = await protectedImageData.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Upload the cloaked image to Supabase
     const uploadResult = await uploadImage(
-      buffer,
+      cloakedBuffer,
       protectedPath,
-      protectedImageData.type || "image/png"
+      "image/png"
     );
 
     if ("error" in uploadResult) {
@@ -116,6 +129,7 @@ export async function POST(request: NextRequest) {
       originalUrl: updatedPair.originalUrl,
       protectedUrl: updatedPair.protectedUrl,
       status: updatedPair.status,
+      metadata: cloakData.metadata,
     });
   } catch (error) {
     console.error("Conversion error:", error);
