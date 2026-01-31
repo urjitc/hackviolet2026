@@ -1,0 +1,21 @@
+# FastAPI & Server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# ML & Image Processing
+torch>=2.0.0
+torchvision>=0.15.0
+pillow>=10.0.0
+numpy>=1.24.0
+
+# Face Analysis (optional - for proof engine)
+# Note: insightface and onnxruntime require Python 3.12 or older
+# Uncomment these if using Python <= 3.12:
+# insightface>=0.7.3
+# onnxruntime>=1.16.0
+
+# Storage & Utils
+python-dotenv>=1.0.0
+aiofiles>=23.2.1
+uuid6>=2024.1.12

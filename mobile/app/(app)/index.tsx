@@ -10,15 +10,39 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
+import * as Sharing from "expo-sharing";
 import { SymbolView } from "expo-symbols";
 import { authClient } from "@/lib/auth-client";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import {
+  uploadImageToStorage,
+  createImagePair,
+  updateImagePairStatus,
+} from "@/lib/supabase";
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+if (__DEV__ && !process.env.EXPO_PUBLIC_BACKEND_URL) {
+  console.warn("EXPO_PUBLIC_BACKEND_URL not configured - localhost won't work on physical devices");
+}
+
+type CloakingStrength = "light" | "medium" | "strong";
+
+interface CloakResult {
+  id: string;
+  cloaked_image: string;
+  metadata: {
+    strength: string;
+    attack_type: string;
+    faces_detected: number;
+  };
+}
 
 function ScanningOverlay() {
   const animatedValue = useRef(new Animated.Value(0)).current;
@@ -30,7 +54,7 @@ function ScanningOverlay() {
           toValue: 1,
           duration: 1500,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false, // useNativeDriver: false required for layout properties like top/height percent
+          useNativeDriver: false,
         }),
         Animated.timing(animatedValue, {
           toValue: 0,
@@ -61,7 +85,7 @@ function ScanningOverlay() {
   );
 }
 
-function SuccessToast({ onDone }: { onDone: () => void }) {
+function SuccessToast({ onDone, metadata }: { onDone: () => void; metadata?: CloakResult["metadata"] }) {
   const slideAnim = useRef(new Animated.Value(100)).current;
 
   useEffect(() => {
@@ -90,7 +114,9 @@ function SuccessToast({ onDone }: { onDone: () => void }) {
           </View>
           <View style={styles.toastTextContainer}>
             <Text style={styles.toastTitle}>Cloaking Complete</Text>
-            <Text style={styles.toastSubtitle}>Your image is now protected.</Text>
+            <Text style={styles.toastSubtitle}>
+              {metadata ? `${metadata.faces_detected} face(s) protected` : "Your image is now protected."}
+            </Text>
           </View>
         </View>
         <Pressable
@@ -106,45 +132,153 @@ function SuccessToast({ onDone }: { onDone: () => void }) {
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
+  const { data: session } = authClient.useSession();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null);
+  const [cloakedImage, setCloakedImage] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [strength, setStrength] = useState<CloakingStrength>("medium");
+  const [metadata, setMetadata] = useState<CloakResult["metadata"] | null>(null);
 
   const pickImage = async () => {
     if (Platform.OS !== "web") {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        alert("Sorry, we need camera roll permissions to make this work!");
+        Alert.alert("Permission needed", "Please grant camera roll permissions to select images.");
         return;
       }
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
-      quality: 1,
+      quality: 0.8,
+      base64: true,
     });
 
-    if (!result.canceled) {
+    if (!result.canceled && result.assets[0]) {
       if (Platform.OS === "ios") Haptics.selectionAsync();
       setSelectedImage(result.assets[0].uri);
-      setShowSuccess(false); // Reset success state on new image
+      setSelectedImageBase64(result.assets[0].base64 || null);
+      setCloakedImage(null);
+      setMetadata(null);
+      setShowSuccess(false);
     }
   };
 
   const handleCloak = async () => {
-    if (!selectedImage) return;
+    if (!selectedImage || !selectedImageBase64) return;
+
+    const userId = session?.user?.id;
 
     if (Platform.OS === "ios") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsScanning(true);
 
-    // Simulate network request/processing
-    setTimeout(() => {
-      setIsScanning(false);
+    let imagePairId: string | null = null;
+
+    try {
+      // Step 1: Upload original image to Supabase Storage (if user is logged in)
+      if (userId) {
+        const fileId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        const originalPath = `originals/${userId}/${fileId}.png`;
+
+        const uploadResult = await uploadImageToStorage(
+          selectedImageBase64,
+          originalPath,
+          "image/png"
+        );
+
+        if ("error" in uploadResult) {
+          console.warn("Failed to upload original:", uploadResult.error);
+        } else {
+          // Step 2: Create database record
+          const imagePair = await createImagePair(userId, uploadResult.url);
+          if (imagePair) {
+            imagePairId = imagePair.id;
+            await updateImagePairStatus(imagePairId, "processing");
+          }
+        }
+      }
+
+      // Step 3: Call backend to cloak the image
+      // Use URLSearchParams for application/x-www-form-urlencoded format
+      const formBody = new URLSearchParams();
+      formBody.append("image", selectedImageBase64);
+      formBody.append("strength", strength);
+
+      const response = await fetch(`${BACKEND_URL}/cloak/base64`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formBody.toString(),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || "Cloaking failed");
+      }
+
+      const data: CloakResult = await response.json();
+
+      // Step 4: Upload cloaked image to Supabase Storage (if user is logged in)
+      if (userId && imagePairId) {
+        const fileId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        const protectedPath = `protected/${userId}/${fileId}.png`;
+
+        const protectedUpload = await uploadImageToStorage(
+          data.cloaked_image,
+          protectedPath,
+          "image/png"
+        );
+
+        if ("url" in protectedUpload) {
+          // Step 5: Update database record with protected URL
+          await updateImagePairStatus(imagePairId, "completed", protectedUpload.url);
+        } else {
+          await updateImagePairStatus(imagePairId, "failed");
+        }
+      }
+
+      setCloakedImage(`data:image/png;base64,${data.cloaked_image}`);
+      setMetadata(data.metadata);
       setShowSuccess(true);
       if (Platform.OS === "ios") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }, 3000);
+    } catch (error) {
+      // Update status to failed if we have a record
+      if (imagePairId) {
+        await updateImagePairStatus(imagePairId, "failed");
+      }
+
+      Alert.alert(
+        "Error",
+        error instanceof Error ? error.message : "Failed to process image"
+      );
+      if (Platform.OS === "ios") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const saveImage = async () => {
+    if (!cloakedImage) return;
+
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Error", "Sharing is not available on this device");
+        return;
+      }
+
+      await Sharing.shareAsync(cloakedImage, {
+        mimeType: "image/png",
+        dialogTitle: "Save Protected Image",
+      });
+    } catch (error) {
+      Alert.alert("Error", "Failed to share image");
+    }
   };
 
   return (
@@ -160,6 +294,36 @@ export default function HomeScreen() {
           </Text>
         </View>
 
+        {/* Strength Selector */}
+        <View style={styles.strengthContainer}>
+          <Text style={styles.strengthLabel}>Protection Strength</Text>
+          <View style={styles.strengthButtons}>
+            {(["light", "medium", "strong"] as CloakingStrength[]).map((s) => (
+              <Pressable
+                key={s}
+                style={({ pressed }) => [
+                  styles.strengthButton,
+                  strength === s && styles.strengthButtonActive,
+                  { opacity: pressed ? 0.8 : 1 },
+                ]}
+                onPress={() => {
+                  setStrength(s);
+                  if (Platform.OS === "ios") Haptics.selectionAsync();
+                }}
+              >
+                <Text
+                  style={[
+                    styles.strengthButtonText,
+                    strength === s && styles.strengthButtonTextActive,
+                  ]}
+                >
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         <Pressable
           onPress={pickImage}
           disabled={isScanning}
@@ -172,7 +336,7 @@ export default function HomeScreen() {
           {selectedImage ? (
             <>
               <Image
-                source={{ uri: selectedImage }}
+                source={{ uri: cloakedImage || selectedImage }}
                 style={styles.previewImage}
                 contentFit="cover"
                 transition={300}
@@ -221,9 +385,12 @@ export default function HomeScreen() {
             ]}
           >
             {isScanning ? (
-              <Text style={styles.primaryButtonText}>Cloaking Image...</Text>
+              <>
+                <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                <Text style={styles.primaryButtonText}>Cloaking Image...</Text>
+              </>
             ) : showSuccess ? (
-              <Text style={styles.primaryButtonText}>Protected</Text>
+              <Text style={styles.primaryButtonText}>Protected ✓</Text>
             ) : (
               <>
                 {Platform.OS === "ios" ? (
@@ -234,12 +401,25 @@ export default function HomeScreen() {
                     style={{ marginRight: 8 }}
                   />
                 ) : (
-                  <Ionicons name="medical-outline" size={20} color="white" style={{ marginRight: 8 }} />
+                  <Ionicons name="shield-checkmark-outline" size={20} color="white" style={{ marginRight: 8 }} />
                 )}
                 <Text style={styles.primaryButtonText}>Cloak Image</Text>
               </>
             )}
           </Pressable>
+
+          {cloakedImage && (
+            <Pressable
+              onPress={saveImage}
+              style={({ pressed }) => [
+                styles.saveButton,
+                { opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Ionicons name="download-outline" size={20} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.saveButtonText}>Save Protected Image</Text>
+            </Pressable>
+          )}
 
           <Pressable
             onPress={() => authClient.signOut()}
@@ -255,7 +435,7 @@ export default function HomeScreen() {
 
       {showSuccess && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <SuccessToast onDone={() => setShowSuccess(false)} />
+          <SuccessToast onDone={() => setShowSuccess(false)} metadata={metadata || undefined} />
         </View>
       )}
     </View>
@@ -274,6 +454,38 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 24,
     color: "#666",
+  },
+  strengthContainer: {
+    marginBottom: 8,
+  },
+  strengthLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 10,
+  },
+  strengthButtons: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  strengthButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "#F2F2F7",
+    alignItems: "center",
+  },
+  strengthButtonActive: {
+    backgroundColor: "#007AFF",
+  },
+  strengthButtonText: {
+    color: "#666",
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  strengthButtonTextActive: {
+    color: "#FFFFFF",
   },
   uploadCard: {
     width: "100%",
@@ -309,7 +521,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backdropFilter: "blur(10px)",
   },
   changeText: {
     color: "white",
@@ -369,6 +580,19 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
   },
+  saveButton: {
+    backgroundColor: "#34C759",
+    height: 50,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   secondaryButton: {
     height: 44,
     alignItems: "center",
@@ -378,8 +602,6 @@ const styles = StyleSheet.create({
     color: "#FF3B30",
     fontSize: 17,
   },
-
-  // Scanning Styles
   scanLine: {
     height: 2,
     width: "100%",
@@ -389,8 +611,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
   },
-
-  // Toast Styles
   toastContainer: {
     position: 'absolute',
     bottom: 40,
@@ -402,7 +622,7 @@ const styles = StyleSheet.create({
   toast: {
     width: '100%',
     padding: 16,
-    paddingRight: 20, // Extra padding for button
+    paddingRight: 20,
     borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -419,7 +639,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#34C759', // Success green
+    backgroundColor: '#34C759',
     alignItems: 'center',
     justifyContent: 'center',
   },
