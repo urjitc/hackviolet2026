@@ -3,9 +3,13 @@ import { decode } from "base64-arraybuffer";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE!;
 
-// Client-side Supabase client (uses anon key, respects RLS)
+// Client-side Supabase client (uses anon key, respects RLS) - for queries
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Admin client (uses service role key, bypasses RLS) - for uploads
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 // Storage bucket name (must match web app)
 export const IMAGES_BUCKET = "images";
@@ -25,11 +29,14 @@ export interface ImagePair {
 
 // Database operations for image_pairs table
 export async function getUserImagePairs(userId: string): Promise<ImagePair[]> {
-  const { data, error } = await supabase
+  console.log("Fetching images for user:", userId);
+  const { data, error } = await supabaseAdmin
     .from("image_pairs")
     .select("*")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
+
+  console.log("Fetch result:", data?.length, "records", error);
 
   if (error) {
     console.error("Error fetching image pairs:", error);
@@ -43,9 +50,17 @@ export async function createImagePair(
   userId: string,
   originalUrl: string
 ): Promise<ImagePair | null> {
-  const { data, error } = await supabase
+  // Generate a UUID v4
+  const id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+
+  const { data, error } = await supabaseAdmin
     .from("image_pairs")
     .insert({
+      id,
       user_id: userId,
       original_url: originalUrl,
       status: "pending",
@@ -71,7 +86,7 @@ export async function updateImagePairStatus(
     updateData.protected_url = protectedUrl;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("image_pairs")
     .update(updateData)
     .eq("id", id)
@@ -87,7 +102,7 @@ export async function updateImagePairStatus(
 }
 
 export async function deleteImagePair(id: string): Promise<boolean> {
-  const { error } = await supabase.from("image_pairs").delete().eq("id", id);
+  const { error } = await supabaseAdmin.from("image_pairs").delete().eq("id", id);
 
   if (error) {
     console.error("Error deleting image pair:", error);
@@ -107,7 +122,7 @@ export async function uploadImageToStorage(
     // Convert base64 to ArrayBuffer using base64-arraybuffer
     const arrayBuffer = decode(base64Data);
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseAdmin.storage
       .from(IMAGES_BUCKET)
       .upload(path, arrayBuffer, {
         contentType,
@@ -118,7 +133,7 @@ export async function uploadImageToStorage(
       return { error: error.message };
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = supabaseAdmin.storage
       .from(IMAGES_BUCKET)
       .getPublicUrl(data.path);
 
@@ -132,7 +147,7 @@ export async function uploadImageToStorage(
 export async function deleteImageFromStorage(
   path: string
 ): Promise<{ error?: string }> {
-  const { error } = await supabase.storage.from(IMAGES_BUCKET).remove([path]);
+  const { error } = await supabaseAdmin.storage.from(IMAGES_BUCKET).remove([path]);
 
   if (error) {
     return { error: error.message };

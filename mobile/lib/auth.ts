@@ -1,12 +1,7 @@
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth";
 import { expo } from "@better-auth/expo";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import * as schema from "../auth-schema";
-
-const client = postgres(process.env.DATABASE_URL!);
-const db = drizzle(client, { schema });
+import { db } from "./db";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {

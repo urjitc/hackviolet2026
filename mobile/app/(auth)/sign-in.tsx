@@ -9,20 +9,27 @@ import {
   Platform,
   Pressable,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { authClient } from "@/lib/auth-client";
 import { Link } from "expo-router";
-import { BlurView } from "expo-blur";
-import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
-import { SymbolView } from "expo-symbols";
-import { Ionicons } from "@expo/vector-icons";
+import { useFonts, Caveat_400Regular, Caveat_600SemiBold, Caveat_700Bold } from '@expo-google-fonts/caveat';
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const [fontsLoaded] = useFonts({
+    Caveat_400Regular,
+    Caveat_600SemiBold,
+    Caveat_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -49,91 +56,77 @@ export default function SignIn() {
 
   return (
     <View style={styles.container}>
-      <Image
-        source="https://images.unsplash.com/photo-1614850523060-8da1d56ae167?q=80&w=2670&auto=format&fit=crop"
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        transition={1000}
-      />
-      <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <View style={styles.iconContainer}>
-              {Platform.OS === "ios" ? (
-                <SymbolView name="lock.shield" size={40} tintColor="white" />
-              ) : (
-                <Ionicons name="shield-checkmark" size={40} color="white" />
-              )}
-            </View>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue protecting your privacy</Text>
-          </View>
-
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="light" />
-              <TextInput
-                placeholder="Email"
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={email}
-                onChangeText={setEmail}
-                inputMode="email"
-                autoCapitalize="none"
-                style={styles.input}
-                keyboardAppearance="dark"
-              />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Polaroid-style card */}
+          <View style={styles.polaroidCard}>
+            {/* Header area (photo area) */}
+            <View style={styles.headerArea}>
+              <Text style={styles.title}>Cloaked</Text>
+              <Text style={styles.subtitle}>welcome back</Text>
             </View>
 
-            <View style={styles.inputContainer}>
-              <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="light" />
-              <TextInput
-                placeholder="Password"
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={password}
-                onChangeText={setPassword}
-                style={styles.input}
-                secureTextEntry
-                keyboardAppearance="dark"
-              />
-            </View>
+            {/* Form area (caption area) */}
+            <View style={styles.formArea}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>email</Text>
+                <TextInput
+                  placeholder="you@example.com"
+                  placeholderTextColor="rgba(107,90,72,0.4)"
+                  value={email}
+                  onChangeText={setEmail}
+                  inputMode="email"
+                  autoCapitalize="none"
+                  style={styles.input}
+                  keyboardAppearance="light"
+                />
+              </View>
 
-            <Pressable
-              onPress={handleLogin}
-              disabled={isLoading}
-              style={({ pressed }) => [
-                styles.button,
-                { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
-              ]}
-            >
-              <LinearGradient
-                colors={["#007AFF", "#5856D6"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.gradient}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>password</Text>
+                <TextInput
+                  placeholder="••••••••"
+                  placeholderTextColor="rgba(107,90,72,0.4)"
+                  value={password}
+                  onChangeText={setPassword}
+                  style={styles.input}
+                  secureTextEntry
+                  keyboardAppearance="light"
+                />
+              </View>
+
+              <Pressable
+                onPress={handleLogin}
+                disabled={isLoading}
+                style={({ pressed }) => [
+                  styles.button,
+                  { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+                ]}
               >
                 {isLoading ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text style={styles.buttonText}>Sign In</Text>
+                  <Text style={styles.buttonText}>sign in</Text>
                 )}
-              </LinearGradient>
-            </Pressable>
+              </Pressable>
 
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account?</Text>
-              <Link href="/(auth)/sign-up" asChild>
-                <Pressable>
-                  <Text style={styles.linkText}>Sign Up</Text>
-                </Pressable>
-              </Link>
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>new here? </Text>
+                <Link href="/(auth)/sign-up" asChild>
+                  <Pressable>
+                    <Text style={styles.linkText}>create account</Text>
+                  </Pressable>
+                </Link>
+              </View>
             </View>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -142,95 +135,111 @@ export default function SignIn() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#F9F7F3",
   },
   keyboardView: {
     flex: 1,
-    justifyContent: "center",
   },
-  content: {
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
     padding: 24,
-    gap: 32,
   },
-  header: {
-    alignItems: "center",
-    gap: 12,
+  polaroidCard: {
+    backgroundColor: "#E8DCC8",
+    borderRadius: 2,
+    shadowColor: "#6B5A48",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 5,
+    overflow: "hidden",
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(255,255,255,0.1)",
+  headerArea: {
+    backgroundColor: "#FFFFFF",
+    padding: 28,
+    paddingTop: 32,
+    paddingHorizontal: 44,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(107,90,72,0.1)",
   },
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "white",
-    textAlign: "center",
+    fontSize: 40,
+    color: "#6B5A48",
+    fontFamily: "Caveat_700Bold",
+    marginBottom: 4,
+    marginTop: 10,
+    paddingRight: 6,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.7)",
-    textAlign: "center",
+    fontSize: 22,
+    color: "rgba(107,90,72,0.6)",
+    fontFamily: "Caveat_400Regular",
   },
-  form: {
+  formArea: {
+    padding: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
     gap: 16,
   },
-  inputContainer: {
-    height: 56,
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+  inputGroup: {
+    gap: 6,
+  },
+  label: {
+    fontSize: 20,
+    color: "#6B5A48",
+    fontFamily: "Caveat_600SemiBold",
   },
   input: {
-    flex: 1,
+    height: 50,
+    backgroundColor: "#FAF8F5",
+    borderWidth: 1,
+    borderColor: "rgba(107,90,72,0.2)",
+    borderRadius: 8,
     paddingHorizontal: 16,
-    color: "white",
     fontSize: 16,
+    color: "#6B5A48",
   },
   button: {
-    height: 56,
-    borderRadius: 16,
-    overflow: "hidden",
+    height: 50,
+    backgroundColor: "#C17A5C",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
-    shadowColor: "#007AFF",
+    shadowColor: "#C17A5C",
     shadowOffset: {
       width: 0,
       height: 4,
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
-  },
-  gradient: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    elevation: 4,
   },
   buttonText: {
     color: "white",
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 22,
+    fontFamily: "Caveat_600SemiBold",
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 8,
-    marginTop: 16,
+    marginTop: 12,
   },
   footerText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 15,
+    color: "rgba(107,90,72,0.7)",
+    fontSize: 18,
+    fontFamily: "Caveat_400Regular",
   },
   linkText: {
-    color: "#007AFF",
-    fontSize: 15,
-    fontWeight: "600",
+    color: "#C17A5C",
+    fontSize: 18,
+    fontFamily: "Caveat_600SemiBold",
+    textDecorationLine: "underline",
   },
 });

@@ -1,38 +1,35 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   Pressable,
-  useWindowDimensions,
   Platform,
   ActivityIndicator,
-  Animated,
-  Easing,
   Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
-import * as Sharing from "expo-sharing";
+import * as MediaLibrary from "expo-media-library";
+import * as FileSystem from "expo-file-system/legacy";
+
 import { SymbolView } from "expo-symbols";
 import { authClient } from "@/lib/auth-client";
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
+
 import {
   uploadImageToStorage,
   createImagePair,
   updateImagePairStatus,
 } from "@/lib/supabase";
+import { useFonts, Caveat_400Regular, Caveat_600SemiBold, Caveat_700Bold } from '@expo-google-fonts/caveat';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
 if (__DEV__ && !process.env.EXPO_PUBLIC_BACKEND_URL) {
   console.warn("EXPO_PUBLIC_BACKEND_URL not configured - localhost won't work on physical devices");
 }
-
-type CloakingStrength = "light" | "medium" | "strong";
 
 interface CloakResult {
   id: string;
@@ -44,102 +41,26 @@ interface CloakResult {
   };
 }
 
-function ScanningOverlay() {
-  const animatedValue = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(animatedValue, {
-          toValue: 1,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-        Animated.timing(animatedValue, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const top = animatedValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
-  });
-
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,122,255,0.1)' }]} />
-      <Animated.View style={[styles.scanLine, { top }]}>
-        <LinearGradient
-          colors={["rgba(50,200,255,0)", "rgba(50,200,255,0.8)", "rgba(50,200,255,0)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{ flex: 1 }}
-        />
-      </Animated.View>
-    </View>
-  );
-}
-
-function SuccessToast({ onDone, metadata }: { onDone: () => void; metadata?: CloakResult["metadata"] }) {
-  const slideAnim = useRef(new Animated.Value(100)).current;
-
-  useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      useNativeDriver: true,
-      damping: 15,
-    }).start();
-  }, []);
-
-  return (
-    <Animated.View
-      style={[
-        styles.toastContainer,
-        { transform: [{ translateY: slideAnim }] }
-      ]}
-    >
-      <BlurView intensity={80} tint="dark" style={styles.toast}>
-        <View style={styles.toastContent}>
-          <View style={styles.checkCircle}>
-            {Platform.OS === 'ios' ? (
-              <SymbolView name="checkmark" size={20} tintColor="white" />
-            ) : (
-              <Ionicons name="checkmark" size={24} color="white" />
-            )}
-          </View>
-          <View style={styles.toastTextContainer}>
-            <Text style={styles.toastTitle}>Cloaking Complete</Text>
-            <Text style={styles.toastSubtitle}>
-              {metadata ? `${metadata.faces_detected} face(s) protected` : "Your image is now protected."}
-            </Text>
-          </View>
-        </View>
-        <Pressable
-          onPress={onDone}
-          style={({ pressed }) => [styles.doneButton, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Text style={styles.doneButtonText}>Done</Text>
-        </Pressable>
-      </BlurView>
-    </Animated.View>
-  );
-}
 
 export default function HomeScreen() {
-  const { width } = useWindowDimensions();
   const { data: session } = authClient.useSession();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null);
   const [cloakedImage, setCloakedImage] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [strength, setStrength] = useState<CloakingStrength>("medium");
+
   const [metadata, setMetadata] = useState<CloakResult["metadata"] | null>(null);
+
+  const [fontsLoaded] = useFonts({
+    Caveat_400Regular,
+    Caveat_600SemiBold,
+    Caveat_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   const pickImage = async () => {
     if (Platform.OS !== "web") {
@@ -164,7 +85,7 @@ export default function HomeScreen() {
       setSelectedImageBase64(result.assets[0].base64 || null);
       setCloakedImage(null);
       setMetadata(null);
-      setShowSuccess(false);
+
     }
   };
 
@@ -206,7 +127,7 @@ export default function HomeScreen() {
       // Use URLSearchParams for application/x-www-form-urlencoded format
       const formBody = new URLSearchParams();
       formBody.append("image", selectedImageBase64);
-      formBody.append("strength", strength);
+      formBody.append("strength", "medium");
 
       const response = await fetch(`${BACKEND_URL}/cloak/base64`, {
         method: "POST",
@@ -244,7 +165,7 @@ export default function HomeScreen() {
 
       setCloakedImage(`data:image/png;base64,${data.cloaked_image}`);
       setMetadata(data.metadata);
-      setShowSuccess(true);
+
       if (Platform.OS === "ios") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       // Update status to failed if we have a record
@@ -266,121 +187,119 @@ export default function HomeScreen() {
     if (!cloakedImage) return;
 
     try {
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert("Error", "Sharing is not available on this device");
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please grant photo library permissions to save the image.");
         return;
       }
 
-      await Sharing.shareAsync(cloakedImage, {
-        mimeType: "image/png",
-        dialogTitle: "Save Protected Image",
+      const base64Code = cloakedImage.split("base64,")[1];
+      const filename = FileSystem.documentDirectory + `protected_${Date.now()}.png`;
+
+      await FileSystem.writeAsStringAsync(filename, base64Code, {
+        encoding: 'base64',
       });
+
+      await MediaLibrary.saveToLibraryAsync(filename);
+
+      if (Platform.OS === "ios") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      Alert.alert("Saved!", "Image saved to your photos.");
     } catch (error) {
-      Alert.alert("Error", "Failed to share image");
+      console.error(error);
+      Alert.alert("Error", "Failed to save image");
     }
   };
 
+
+
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "#F9F7F3" }}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.container}
       >
-        <View style={styles.headerContainer}>
-          <Text style={styles.subtitle}>
-            Protect your identity from AI manipulation. Upload a photo to apply
-            invisible cloaking layers.
-          </Text>
-        </View>
+        <View
+          style={[
+            styles.polaroidFrame,
+            {
+              transform: [{ rotate: '-3deg' }]
+            }
+          ]}
+        >
+          <Pressable
+            onPress={pickImage}
+            disabled={isScanning}
+            style={({ pressed }) => [
+              styles.photoArea,
+              {
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.98 : 1 }]
+              }
+            ]}
+          >
+            {selectedImage ? (
+              <>
+                <Image
+                  source={{ uri: cloakedImage || selectedImage }}
+                  style={styles.previewImage}
+                  contentFit="cover"
+                  transition={300}
+                />
+                {isScanning && (
+                  <View style={styles.processingOverlay}>
+                    <ActivityIndicator size="large" color="#C17A5C" />
+                  </View>
+                )}
+                {!isScanning && (
+                  <View style={styles.changeOverlay}>
+                    <Text style={styles.changeText}>Change Photo</Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.viewfinderContainer}>
+                  <View style={styles.viewfinder}>
+                    <View style={styles.cornerBrackets}>
+                      <View style={[styles.bracket, styles.bracketTopLeft]} />
+                      <View style={[styles.bracket, styles.bracketTopRight]} />
+                      <View style={[styles.bracket, styles.bracketBottomLeft]} />
+                      <View style={[styles.bracket, styles.bracketBottomRight]} />
+                    </View>
+                    {Platform.OS === "ios" ? (
+                      <SymbolView
+                        name="camera"
+                        size={32}
+                        tintColor="#9B8A76"
+                      />
+                    ) : (
+                      <Ionicons name="camera-outline" size={32} color="#9B8A76" />
+                    )}
+                  </View>
+                </View>
+                <Text style={styles.uploadAction}>Click or drag</Text>
+              </View>
+            )}
+          </Pressable>
 
-        {/* Strength Selector */}
-        <View style={styles.strengthContainer}>
-          <Text style={styles.strengthLabel}>Protection Strength</Text>
-          <View style={styles.strengthButtons}>
-            {(["light", "medium", "strong"] as CloakingStrength[]).map((s) => (
-              <Pressable
-                key={s}
-                style={({ pressed }) => [
-                  styles.strengthButton,
-                  strength === s && styles.strengthButtonActive,
-                  { opacity: pressed ? 0.8 : 1 },
-                ]}
-                onPress={() => {
-                  setStrength(s);
-                  if (Platform.OS === "ios") Haptics.selectionAsync();
-                }}
-              >
-                <Text
-                  style={[
-                    styles.strengthButtonText,
-                    strength === s && styles.strengthButtonTextActive,
-                  ]}
-                >
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
+          {/* Caption area - inside polaroid frame */}
+          <View style={styles.captionContainer}>
+            <Text style={styles.captionText}>ready to protect</Text>
           </View>
         </View>
 
-        <Pressable
-          onPress={pickImage}
-          disabled={isScanning}
-          style={({ pressed }) => [
-            styles.uploadCard,
-            { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
-            !selectedImage && styles.uploadCardEmpty,
-          ]}
-        >
-          {selectedImage ? (
-            <>
-              <Image
-                source={{ uri: cloakedImage || selectedImage }}
-                style={styles.previewImage}
-                contentFit="cover"
-                transition={300}
-              />
-              {isScanning && <ScanningOverlay />}
-              {!isScanning && !showSuccess && (
-                <View style={styles.changeOverlay}>
-                  <Text style={styles.changeText}>Change Photo</Text>
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.iconContainer}>
-                {Platform.OS === "ios" ? (
-                  <SymbolView
-                    name="photo.badge.plus"
-                    size={40}
-                    tintColor="#007AFF"
-                    animationSpec={{
-                      effect: {
-                        type: "bounce",
-                      },
-                    }}
-                  />
-                ) : (
-                  <Ionicons name="image-outline" size={40} color="#007AFF" />
-                )}
-              </View>
-              <Text style={styles.uploadTitle}>Select a Photo</Text>
-              <Text style={styles.uploadSubtitle}>
-                Tap to choose from library
-              </Text>
-            </View>
-          )}
-        </Pressable>
+        {/* File size hint - below polaroid */}
+        <Text style={styles.fileHint}>PNG, JPEG, or WEBP up to 10MB</Text>
 
         <View style={styles.actions}>
           <Pressable
             onPress={handleCloak}
-            disabled={!selectedImage || isScanning || showSuccess}
+            disabled={!selectedImage || isScanning}
             style={({ pressed }) => [
               styles.primaryButton,
-              (!selectedImage || isScanning || showSuccess) && styles.disabledButton,
+              (!selectedImage || isScanning) && styles.disabledButton,
               { transform: [{ scale: pressed ? 0.98 : 1 }] },
             ]}
           >
@@ -389,8 +308,7 @@ export default function HomeScreen() {
                 <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
                 <Text style={styles.primaryButtonText}>Cloaking Image...</Text>
               </>
-            ) : showSuccess ? (
-              <Text style={styles.primaryButtonText}>Protected ✓</Text>
+
             ) : (
               <>
                 {Platform.OS === "ios" ? (
@@ -421,6 +339,8 @@ export default function HomeScreen() {
             </Pressable>
           )}
 
+
+
           <Pressable
             onPress={() => authClient.signOut()}
             style={({ pressed }) => [
@@ -433,11 +353,7 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {showSuccess && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <SuccessToast onDone={() => setShowSuccess(false)} metadata={metadata || undefined} />
-        </View>
-      )}
+
     </View>
   );
 }
@@ -445,82 +361,53 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
+    paddingTop: 40,
     gap: 24,
+    backgroundColor: "#F9F7F3",
   },
-  headerContainer: {
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 17,
-    lineHeight: 24,
-    color: "#666",
-  },
-  strengthContainer: {
-    marginBottom: 8,
-  },
-  strengthLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 10,
-  },
-  strengthButtons: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  strengthButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: "#F2F2F7",
-    alignItems: "center",
-  },
-  strengthButtonActive: {
-    backgroundColor: "#007AFF",
-  },
-  strengthButtonText: {
-    color: "#666",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  strengthButtonTextActive: {
-    color: "#FFFFFF",
-  },
-  uploadCard: {
+  polaroidFrame: {
     width: "100%",
-    aspectRatio: 3 / 4,
-    borderRadius: 24,
-    backgroundColor: "#F2F2F7",
-    overflow: "hidden",
-    position: "relative",
-    shadowColor: "#000",
+    backgroundColor: "#E8DCC8",
+    padding: 16,
+    paddingBottom: 56,
+    borderRadius: 2,
+    shadowColor: "#6B5A48",
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 8,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 5,
   },
-  uploadCardEmpty: {
-    borderWidth: 2,
-    borderColor: "#E5E5EA",
-    borderStyle: "dashed",
-    backgroundColor: "#FAFAFA",
+  photoArea: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 1,
+    overflow: "hidden",
+    position: "relative",
   },
   previewImage: {
     width: "100%",
     height: "100%",
   },
+  processingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(232,220,200,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   changeOverlay: {
     position: "absolute",
-    bottom: 20,
-    alignSelf: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
+    bottom: 8,
+    left: 8,
+    right: 8,
+    alignItems: "center",
+    backgroundColor: "rgba(107,90,72,0.85)",
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 10,
+    borderRadius: 6,
   },
   changeText: {
     color: "white",
@@ -531,48 +418,98 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    gap: 16,
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#E1F0FF",
-    alignItems: "center",
-    justifyContent: "center",
+  viewfinderContainer: {
     marginBottom: 8,
   },
-  uploadTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#000",
+  viewfinder: {
+    width: 120,
+    height: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
   },
-  uploadSubtitle: {
-    fontSize: 15,
-    color: "#8E8E93",
+  cornerBrackets: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
+  bracket: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    borderColor: "#9B8A76",
+    borderWidth: 2,
+  },
+  bracketTopLeft: {
+    top: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+  },
+  bracketTopRight: {
+    top: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+  },
+  bracketBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+  },
+  bracketBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+  },
+  uploadAction: {
+    fontSize: 14,
+    color: "#9B8A76",
+    letterSpacing: 0.3,
+  },
+  captionContainer: {
+    marginTop: 12,
+    alignItems: "center",
+  },
+  captionText: {
+    fontSize: 18,
+    color: "#6B5A48",
+    fontFamily: "Caveat_400Regular",
+  },
+  fileHint: {
+    fontSize: 16,
+    color: "#6B5A48",
+    opacity: 0.6,
+    fontFamily: "Caveat_400Regular",
+    textAlign: "center",
+    marginTop: 8,
   },
   actions: {
     gap: 16,
     paddingBottom: 40,
   },
   primaryButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#C17A5C",
     height: 54,
-    borderRadius: 16,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#007AFF",
+    shadowColor: "#6B5A48",
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   disabledButton: {
-    backgroundColor: "#AAB8C2",
+    backgroundColor: "#B8A898",
     shadowOpacity: 0,
   },
   primaryButtonText: {
@@ -581,9 +518,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   saveButton: {
-    backgroundColor: "#34C759",
+    backgroundColor: "#8B7255",
     height: 50,
-    borderRadius: 14,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -599,17 +536,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   secondaryButtonText: {
-    color: "#FF3B30",
+    color: "#A0715E",
     fontSize: 17,
-  },
-  scanLine: {
-    height: 2,
-    width: "100%",
-    backgroundColor: "#007AFF",
-    shadowColor: "#007AFF",
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
   },
   toastContainer: {
     position: 'absolute',
@@ -639,7 +567,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#34C759',
+    backgroundColor: '#8B7255',
     alignItems: 'center',
     justifyContent: 'center',
   },

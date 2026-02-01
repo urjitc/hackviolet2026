@@ -98,7 +98,7 @@ export const accountRelations = relations(account, ({ one }) => ({
 export const imagePairs = pgTable(
   "image_pairs",
   {
-    id: text("id").primaryKey(),
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

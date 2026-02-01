@@ -12,21 +12,28 @@ import {
   ScrollView,
 } from "react-native";
 import { authClient } from "@/lib/auth-client";
-import { BlurView } from "expo-blur";
-import { Image } from "expo-image";
+import { Link } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
-import { SymbolView } from "expo-symbols";
-import { Ionicons } from "@expo/vector-icons";
+import { useFonts, Caveat_400Regular, Caveat_600SemiBold, Caveat_700Bold } from '@expo-google-fonts/caveat';
 
 export default function SignUp() {
-  const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const [fontsLoaded] = useFonts({
+    Caveat_400Regular,
+    Caveat_600SemiBold,
+    Caveat_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   const handleSignUp = async () => {
-    if (!email || !password || !name) {
+    if (!name || !email || !password) {
       if (Platform.OS === "ios") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", "Please fill in all fields");
       return;
@@ -34,9 +41,9 @@ export default function SignUp() {
 
     setIsLoading(true);
     const signUpResponse = await authClient.signUp.email({
+      name,
       email,
       password,
-      name,
     });
     setIsLoading(false);
 
@@ -51,92 +58,88 @@ export default function SignUp() {
 
   return (
     <View style={styles.container}>
-      <Image
-        source="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        transition={1000}
-      />
-      <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <View style={styles.iconContainer}>
-              {Platform.OS === "ios" ? (
-                <SymbolView name="person.badge.plus" size={40} tintColor="white" />
-              ) : (
-                <Ionicons name="person-add" size={40} color="white" />
-              )}
-            </View>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join us to start protecting your digital identity</Text>
-          </View>
-
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="light" />
-              <TextInput
-                placeholder="Full Name"
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={name}
-                onChangeText={setName}
-                style={styles.input}
-                keyboardAppearance="dark"
-              />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Polaroid-style card */}
+          <View style={styles.polaroidCard}>
+            {/* Header area (photo area) */}
+            <View style={styles.headerArea}>
+              <Text style={styles.title}>Cloaked</Text>
+              <Text style={styles.subtitle}>join us</Text>
             </View>
 
-            <View style={styles.inputContainer}>
-              <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="light" />
-              <TextInput
-                placeholder="Email"
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={email}
-                onChangeText={setEmail}
-                inputMode="email"
-                autoCapitalize="none"
-                style={styles.input}
-                keyboardAppearance="dark"
-              />
-            </View>
+            {/* Form area (caption area) */}
+            <View style={styles.formArea}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>name</Text>
+                <TextInput
+                  placeholder="Your name"
+                  placeholderTextColor="rgba(107,90,72,0.4)"
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                  style={styles.input}
+                  keyboardAppearance="light"
+                />
+              </View>
 
-            <View style={styles.inputContainer}>
-              <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="light" />
-              <TextInput
-                placeholder="Password"
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={password}
-                onChangeText={setPassword}
-                style={styles.input}
-                secureTextEntry
-                keyboardAppearance="dark"
-              />
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>email</Text>
+                <TextInput
+                  placeholder="you@example.com"
+                  placeholderTextColor="rgba(107,90,72,0.4)"
+                  value={email}
+                  onChangeText={setEmail}
+                  inputMode="email"
+                  autoCapitalize="none"
+                  style={styles.input}
+                  keyboardAppearance="light"
+                />
+              </View>
 
-            <Pressable
-              onPress={handleSignUp}
-              disabled={isLoading}
-              style={({ pressed }) => [
-                styles.button,
-                { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
-              ]}
-            >
-              <LinearGradient
-                colors={["#007AFF", "#00C7BE"]} // Different gradient for signup
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.gradient}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>password</Text>
+                <TextInput
+                  placeholder="••••••••"
+                  placeholderTextColor="rgba(107,90,72,0.4)"
+                  value={password}
+                  onChangeText={setPassword}
+                  style={styles.input}
+                  secureTextEntry
+                  keyboardAppearance="light"
+                />
+              </View>
+
+              <Pressable
+                onPress={handleSignUp}
+                disabled={isLoading}
+                style={({ pressed }) => [
+                  styles.button,
+                  { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+                ]}
               >
                 {isLoading ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text style={styles.buttonText}>Create Account</Text>
+                  <Text style={styles.buttonText}>create account</Text>
                 )}
-              </LinearGradient>
-            </Pressable>
+              </Pressable>
+
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>already have an account? </Text>
+                <Link href="/(auth)/sign-in" asChild>
+                  <Pressable>
+                    <Text style={styles.linkText}>sign in</Text>
+                  </Pressable>
+                </Link>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -147,7 +150,7 @@ export default function SignUp() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#F9F7F3",
   },
   keyboardView: {
     flex: 1,
@@ -156,72 +159,103 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     padding: 24,
-    gap: 32,
   },
-  header: {
-    alignItems: "center",
-    gap: 12,
+  polaroidCard: {
+    backgroundColor: "#E8DCC8",
+    borderRadius: 2,
+    shadowColor: "#6B5A48",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 5,
+    overflow: "hidden",
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(255,255,255,0.1)",
+  headerArea: {
+    backgroundColor: "#FFFFFF",
+    padding: 28,
+    paddingTop: 32,
+    paddingHorizontal: 40,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(107,90,72,0.1)",
   },
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "white",
-    textAlign: "center",
+    fontSize: 40,
+    color: "#6B5A48",
+    fontFamily: "Caveat_700Bold",
+    marginBottom: 4,
+    marginTop: 8,
+    paddingRight: 6,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.7)",
-    textAlign: "center",
+    fontSize: 22,
+    color: "rgba(107,90,72,0.6)",
+    fontFamily: "Caveat_400Regular",
   },
-  form: {
+  formArea: {
+    padding: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
     gap: 16,
   },
-  inputContainer: {
-    height: 56,
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+  inputGroup: {
+    gap: 6,
+  },
+  label: {
+    fontSize: 20,
+    color: "#6B5A48",
+    fontFamily: "Caveat_600SemiBold",
   },
   input: {
-    flex: 1,
+    height: 50,
+    backgroundColor: "#FAF8F5",
+    borderWidth: 1,
+    borderColor: "rgba(107,90,72,0.2)",
+    borderRadius: 8,
     paddingHorizontal: 16,
-    color: "white",
     fontSize: 16,
+    color: "#6B5A48",
   },
   button: {
-    height: 56,
-    borderRadius: 16,
-    overflow: "hidden",
+    height: 50,
+    backgroundColor: "#C17A5C",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
-    shadowColor: "#00C7BE",
+    shadowColor: "#C17A5C",
     shadowOffset: {
       width: 0,
       height: 4,
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
-  },
-  gradient: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    elevation: 4,
   },
   buttonText: {
     color: "white",
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 22,
+    fontFamily: "Caveat_600SemiBold",
+  },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    marginTop: 12,
+  },
+  footerText: {
+    color: "rgba(107,90,72,0.7)",
+    fontSize: 18,
+    fontFamily: "Caveat_400Regular",
+  },
+  linkText: {
+    color: "#C17A5C",
+    fontSize: 18,
+    fontFamily: "Caveat_600SemiBold",
+    textDecorationLine: "underline",
   },
 });
