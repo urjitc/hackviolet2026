@@ -76,6 +76,7 @@ export const verification = pgTable(
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  imagePairs: many(imagePairs),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -88,6 +89,34 @@ export const sessionRelations = relations(session, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+// Image pairs table - stores original + protected images together
+// Must match web schema exactly for data consistency
+export const imagePairs = pgTable(
+  "image_pairs",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    originalUrl: text("original_url").notNull(),
+    protectedUrl: text("protected_url"), // null until conversion completes
+    status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("image_pairs_userId_idx").on(table.userId)]
+);
+
+export const imagePairsRelations = relations(imagePairs, ({ one }) => ({
+  user: one(user, {
+    fields: [imagePairs.userId],
     references: [user.id],
   }),
 }));
