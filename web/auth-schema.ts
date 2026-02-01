@@ -101,7 +101,8 @@ export const imagePairs = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     originalUrl: text("original_url").notNull(),
-    protectedUrl: text("protected_url"), // null until conversion completes
+    protectedUrl: text("protected_url"), // Subtle cloak - user downloads this
+    proofUrl: text("proof_url"), // Heavy cloak - for proof modal only
     status: text("status").notNull().default("pending"), // pending, processing, completed, failed
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -112,7 +113,7 @@ export const imagePairs = pgTable(
     proofGeneratedAt: timestamp("proof_generated_at"),
     proofOriginalSwapUrl: text("proof_original_swap_url"),
     proofProtectedSwapUrl: text("proof_protected_swap_url"),
-    proofAnalysis: text("proof_analysis"), // JSON stringified Gemini analysis
+    proofAnalysis: text("proof_analysis"), // JSON stringified proof analysis
   },
   (table) => [index("image_pairs_userId_idx").on(table.userId)]
 );

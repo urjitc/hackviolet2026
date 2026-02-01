@@ -102,35 +102,51 @@ export async function POST(request: NextRequest) {
 
     const cloakData = await cloakResponse.json();
 
-    // Decode the base64 cloaked image
-    const cloakedBuffer = Buffer.from(cloakData.cloaked_image, "base64");
+    // Decode the base64 images (protected = subtle, proof = heavy)
+    const protectedBuffer = Buffer.from(cloakData.protected_image || cloakData.cloaked_image, "base64");
+    const proofBuffer = cloakData.proof_image ? Buffer.from(cloakData.proof_image, "base64") : null;
 
-    // Generate protected image path
+    // Generate image paths
     const protectedPath = originalPath.replace("originals/", "protected/");
+    const proofPath = originalPath.replace("originals/", "proof/");
 
-    // Upload the cloaked image to Supabase
-    const uploadResult = await uploadImage(
-      cloakedBuffer,
+    // Upload protected image to Supabase
+    const protectedUploadResult = await uploadImage(
+      protectedBuffer,
       protectedPath,
       "image/png"
     );
 
-    if ("error" in uploadResult) {
+    if ("error" in protectedUploadResult) {
       await db
         .update(imagePairs)
         .set({ status: "failed" })
         .where(eq(imagePairs.id, imagePairId));
       return NextResponse.json(
-        { error: `Upload failed: ${uploadResult.error}` },
+        { error: `Upload failed: ${protectedUploadResult.error}` },
         { status: 500 }
       );
     }
 
-    // Update database with protected URL and completed status
+    // Upload proof image if available
+    let proofUrl: string | null = null;
+    if (proofBuffer) {
+      const proofUploadResult = await uploadImage(
+        proofBuffer,
+        proofPath,
+        "image/png"
+      );
+      if (!("error" in proofUploadResult)) {
+        proofUrl = proofUploadResult.url;
+      }
+    }
+
+    // Update database with protected URL, proof URL, and completed status
     const [updatedPair] = await db
       .update(imagePairs)
       .set({
-        protectedUrl: uploadResult.url,
+        protectedUrl: protectedUploadResult.url,
+        proofUrl: proofUrl,
         status: "completed",
       })
       .where(eq(imagePairs.id, imagePairId))
@@ -140,6 +156,7 @@ export async function POST(request: NextRequest) {
       id: updatedPair.id,
       originalUrl: updatedPair.originalUrl,
       protectedUrl: updatedPair.protectedUrl,
+      proofUrl: updatedPair.proofUrl,
       status: updatedPair.status,
       metadata: cloakData.metadata,
     });
