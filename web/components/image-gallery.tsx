@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { CloakedStamp } from "@/components/cloaked-stamp";
 import { cn } from "@/lib/utils";
 
 interface ImagePair {
@@ -250,11 +249,6 @@ export function ImageGallery({ refreshTrigger }: ImageGalleryProps) {
                             )}
                             title={image.status.charAt(0).toUpperCase() + image.status.slice(1)}
                           />
-                        )}
-
-                        {/* CLOAKED stamp for completed images */}
-                        {isCompleted && (
-                          <CloakedStamp visible={true} size="sm" className="cloaked-stamp-sm" />
                         )}
 
                         {/* Hover overlay with actions */}

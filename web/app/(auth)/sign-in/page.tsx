@@ -43,19 +43,14 @@ export default function SignInPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--vintage-cream)]">
       {/* Polaroid-style card */}
       <div className="polaroid polaroid-lg w-full max-w-sm">
-        {/* Header area (like photo area) */}
-        <div className="bg-[var(--darkroom-bg)] p-6 text-center relative overflow-hidden">
-          {/* Subtle red glow */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[var(--darkroom-glow)] to-transparent opacity-50" />
-
-          <div className="relative z-10">
-            <h1 className="font-handwriting text-4xl text-[var(--vintage-cream)] mb-2">
-              Cloaked
-            </h1>
-            <p className="font-handwriting text-lg text-[var(--vintage-cream)]/60">
-              welcome back
-            </p>
-          </div>
+        {/* Header area */}
+        <div className="bg-[var(--vintage-paper)] p-6 text-center border-b border-[var(--vintage-brown)]/10">
+          <h1 className="font-handwriting text-4xl text-[var(--vintage-brown)] mb-2">
+            Cloaked
+          </h1>
+          <p className="font-handwriting text-lg text-[var(--vintage-brown)]/60">
+            welcome back
+          </p>
         </div>
 
         {/* Form area (caption area) */}
@@ -96,7 +91,7 @@ export default function SignInPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="your secret"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

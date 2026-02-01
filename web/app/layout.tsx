@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Figtree, Caveat } from "next/font/google";
-import { SoundProvider } from "@/components/sound-provider";
+import { FloatingParticles } from "@/components/floating-particles";
 import "./globals.css";
 
 const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
@@ -36,9 +36,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased film-grain`}
       >
-        <SoundProvider>
-          {children}
-        </SoundProvider>
+        <FloatingParticles />
+        {children}
       </body>
     </html>
   );

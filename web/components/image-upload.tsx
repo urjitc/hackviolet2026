@@ -2,8 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { CloakedStamp } from "@/components/cloaked-stamp";
-import { useSound } from "@/components/sound-provider";
 import { cn } from "@/lib/utils";
 
 interface ImagePair {
@@ -22,8 +20,6 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imagePair, setImagePair] = useState<ImagePair | null>(null);
-  const [showStamp, setShowStamp] = useState(false);
-  const { playSound } = useSound();
 
   // Track polling state for cleanup
   const pollingRef = useRef<{ active: boolean; timeoutId: NodeJS.Timeout | null }>({
@@ -41,18 +37,6 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
     };
   }, []);
 
-  // Show stamp with delay when completed and play stamp sound
-  useEffect(() => {
-    if (imagePair?.status === "completed") {
-      const timer = setTimeout(() => {
-        setShowStamp(true);
-        playSound("stamp");
-      }, 300);
-      return () => clearTimeout(timer);
-    } else {
-      setShowStamp(false);
-    }
-  }, [imagePair?.status, playSound]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -132,8 +116,6 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
       setError(null);
       setIsUploading(true);
       setImagePair(null);
-      setShowStamp(false);
-      playSound("shutter");
 
       try {
         const formData = new FormData();
@@ -154,7 +136,6 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
         pollForCompletion(data.id);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed");
-        playSound("error");
       } finally {
         setIsUploading(false);
       }
@@ -196,7 +177,6 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
   const resetUpload = () => {
     setImagePair(null);
     setError(null);
-    setShowStamp(false);
   };
 
   return (
@@ -237,16 +217,12 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
         >
           {imagePair?.protectedUrl ? (
             // Show protected image when complete
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imagePair.protectedUrl}
-                alt="Protected"
-                className="w-full h-full object-cover"
-              />
-              {/* CLOAKED Stamp */}
-              <CloakedStamp visible={showStamp} size="lg" />
-            </>
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={imagePair.protectedUrl}
+              alt="Protected"
+              className="w-full h-full object-cover"
+            />
           ) : imagePair?.originalUrl ? (
             // Show original while processing
             <div className="relative w-full h-full">

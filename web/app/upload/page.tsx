@@ -6,7 +6,6 @@ import { authClient } from "@/lib/auth-client";
 import { ImageUpload } from "@/components/image-upload";
 import { ImageGallery } from "@/components/image-gallery";
 import { Button } from "@/components/ui/button";
-import { SoundToggle } from "@/components/sound-provider";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -52,7 +51,6 @@ export default function UploadPage() {
             <span className="text-sm text-[var(--vintage-brown)]/70 hidden sm:block">
               Welcome, {session.user?.name || session.user?.email}
             </span>
-            <SoundToggle />
             <Button
               variant="ghost"
               size="sm"
@@ -90,7 +88,7 @@ export default function UploadPage() {
 
       {/* Footer */}
       <footer className="py-12 text-center">
-        <p className="font-handwriting text-sm text-[var(--vintage-brown)]/40">
+        <p className="font-handwriting text-2xl text-[var(--vintage-brown)]/50">
           your photos, safe
         </p>
       </footer>

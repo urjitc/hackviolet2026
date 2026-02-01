@@ -416,36 +416,22 @@
    ======================================== */
 
 .btn-vintage {
-  background: linear-gradient(
-    to bottom,
-    var(--vintage-amber) 0%,
-    oklch(0.68 0.14 75) 100%
-  );
-  color: var(--vintage-brown);
-  border: 2px solid oklch(0.60 0.10 70);
-  box-shadow:
-    0 2px 4px oklch(0.4 0.08 70 / 0.2),
-    inset 0 1px 0 oklch(1 0 0 / 0.3);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  box-shadow: 0 2px 8px oklch(0.59 0.26 323 / 0.3);
   transition: all 0.2s ease;
 }
 
 .btn-vintage:hover {
-  background: linear-gradient(
-    to bottom,
-    oklch(0.78 0.14 75) 0%,
-    var(--vintage-amber) 100%
-  );
+  background: oklch(0.54 0.26 323);
   transform: translateY(-1px);
-  box-shadow:
-    0 4px 8px oklch(0.4 0.08 70 / 0.3),
-    inset 0 1px 0 oklch(1 0 0 / 0.3);
+  box-shadow: 0 4px 12px oklch(0.59 0.26 323 / 0.4);
 }
 
 .btn-vintage:active {
-  transform: translateY(1px);
-  box-shadow:
-    0 1px 2px oklch(0.4 0.08 70 / 0.2),
-    inset 0 1px 2px oklch(0 0 0 / 0.1);
+  transform: translateY(0);
+  box-shadow: 0 1px 4px oklch(0.59 0.26 323 / 0.3);
 }
 
 /* ========================================
