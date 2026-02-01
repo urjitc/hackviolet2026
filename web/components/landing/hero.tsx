@@ -13,14 +13,14 @@ export function Hero({ onGetStarted }: HeroProps) {
     const [printed, setPrinted] = useState(false);
 
     const BACKGROUND_IMAGES = [
-        "/backgrounds/1.JPG",
+        "/backgrounds/8.JPG",
         "/backgrounds/2.JPG",
         "/backgrounds/3.JPG",
         "/backgrounds/4.JPG",
         "/backgrounds/5.JPG",
         "/backgrounds/6.JPG",
         "/backgrounds/7.JPG",
-        "/backgrounds/8.JPG",
+        "/backgrounds/1.JPG",
     ];
 
     // Calculate current image index based on rotation (45 degrees per click)
