@@ -57,8 +57,13 @@ def save_upload(image: Image.Image, session_id: str) -> str:
 
 
 def save_cloaked(image: Image.Image, session_id: str) -> str:
-    """Save a cloaked image."""
+    """Save a cloaked image (subtle, user-facing)."""
     return save_image(image, RESULTS_DIR, f"{session_id}_cloaked")
+
+
+def save_proof_version(image: Image.Image, session_id: str) -> str:
+    """Save the proof version (heavy cloak, for proof modal)."""
+    return save_image(image, RESULTS_DIR, f"{session_id}_proof")
 
 
 def save_proof_images(

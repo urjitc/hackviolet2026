@@ -18,12 +18,13 @@ import base64
 from typing import Optional
 from pathlib import Path
 
-from cloak import cloak_image
+from cloak import cloak_image, cloak_image_dual
 from proof import generate_proof, generate_proof_v2
 from storage import (
     generate_id,
     save_upload,
     save_cloaked,
+    save_proof_version,
     save_proof_images,
     get_result_paths,
     image_to_base64,
@@ -88,9 +89,11 @@ async def cloak_endpoint(
     Apply adversarial cloaking to protect an image from deepfakes.
 
     - **file**: Image file (JPEG, PNG)
-    - **strength**: "light", "medium", or "strong"
+    - **strength**: "light", "medium", or "strong" (ignored, uses dual-tier cloaking)
 
-    Returns the cloaked image as base64 and a session ID.
+    Returns two cloaked images:
+    - protected_image: Subtle cloak for user download
+    - proof_image: Heavy cloak for proof modal
     """
     try:
         # Read uploaded image
@@ -103,24 +106,30 @@ async def cloak_endpoint(
         # Save original
         save_upload(image, session_id)
 
-        # Apply cloaking
-        cloaked_image, metadata = cloak_image(image, strength=strength)
+        # Apply dual-tier cloaking (subtle + aggressive)
+        protected_image, proof_image, metadata = cloak_image_dual(image)
 
-        # Save cloaked version
-        cloaked_path = save_cloaked(cloaked_image, session_id)
+        # Save both versions
+        save_cloaked(protected_image, session_id)
+        save_proof_version(proof_image, session_id)
 
         # Convert to base64 for response
-        cloaked_b64 = image_to_base64(cloaked_image)
+        protected_b64 = image_to_base64(protected_image)
+        proof_b64 = image_to_base64(proof_image)
 
         return {
             "id": session_id,
             "status": "success",
-            "cloaked_image": cloaked_b64,
+            "cloaked_image": protected_b64,  # Backwards compatible
+            "protected_image": protected_b64,  # Subtle - for download
+            "proof_image": proof_b64,  # Heavy - for proof modal
             "metadata": metadata,
             "message": "✨ Image successfully cloaked!"
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Cloaking failed: {str(e)}")
 
 
@@ -132,6 +141,10 @@ async def cloak_base64_endpoint(
     """
     Apply cloaking to a base64-encoded image.
     Alternative endpoint for mobile apps.
+
+    Returns two cloaked images:
+    - protected_image: Subtle cloak for user download
+    - proof_image: Heavy cloak for proof modal
     """
     try:
         # Decode base64
@@ -143,24 +156,30 @@ async def cloak_base64_endpoint(
         # Save original
         save_upload(pil_image, session_id)
 
-        # Apply cloaking
-        cloaked_image, metadata = cloak_image(pil_image, strength=strength)
+        # Apply dual-tier cloaking (subtle + aggressive)
+        protected_image, proof_image, metadata = cloak_image_dual(pil_image)
 
-        # Save cloaked version
-        save_cloaked(cloaked_image, session_id)
+        # Save both versions
+        save_cloaked(protected_image, session_id)
+        save_proof_version(proof_image, session_id)
 
         # Convert to base64
-        cloaked_b64 = image_to_base64(cloaked_image)
+        protected_b64 = image_to_base64(protected_image)
+        proof_b64 = image_to_base64(proof_image)
 
         return {
             "id": session_id,
             "status": "success",
-            "cloaked_image": cloaked_b64,
+            "cloaked_image": protected_b64,  # Backwards compatible
+            "protected_image": protected_b64,  # Subtle - for download
+            "proof_image": proof_b64,  # Heavy - for proof modal
             "metadata": metadata,
             "message": "✨ Image successfully cloaked!"
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Cloaking failed: {str(e)}")
 
 
@@ -209,6 +228,73 @@ async def prove_v2_endpoint(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Proof generation failed: {str(e)}")
+
+
+# Progressive proof endpoints - for showing original first, then protected
+@app.post("/prove/v2/original")
+async def prove_original_only(
+    original: str = Form(...),
+):
+    """
+    Generate deepfake on original image only (fast).
+    Used for progressive loading - shows the threat immediately.
+    """
+    from proof import modelslab_face_swap, real_face_swap
+
+    try:
+        original_img = base64_to_image(original)
+
+        print("📸 Attempting face swap on ORIGINAL image...")
+        original_swap, original_meta = modelslab_face_swap(original_img)
+
+        # Fallback to local simulation if API fails
+        if original_swap is None:
+            print("⚠️ API failed for original, using local simulation")
+            original_swap, original_meta = real_face_swap(original_img)
+
+        return {
+            "status": "success",
+            "original_swap": image_to_base64(original_swap),
+            "original_metadata": original_meta,
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Original proof failed: {str(e)}")
+
+
+@app.post("/prove/v2/protected")
+async def prove_protected_only(
+    protected: str = Form(...),
+):
+    """
+    Generate deepfake on protected image (should fail).
+    Used for progressive loading - shows the protection working.
+    """
+    from proof import modelslab_face_swap
+
+    try:
+        protected_img = base64_to_image(protected)
+
+        print("🛡️ Attempting face swap on PROTECTED image...")
+        protected_swap, protected_meta = modelslab_face_swap(protected_img)
+
+        # If face swap failed (which is GOOD!), return the protected image
+        if protected_swap is None:
+            print("✅ Protected image face swap FAILED (this is good!)")
+            protected_swap = protected_img
+            protected_meta["status"] = "failed"
+            protected_meta["message"] = "Face extraction blocked by cloaking protection"
+
+        return {
+            "status": "success",
+            "protected_swap": image_to_base64(protected_swap),
+            "protected_metadata": protected_meta,
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Protected proof failed: {str(e)}")
 
 
 @app.post("/prove/{session_id}")

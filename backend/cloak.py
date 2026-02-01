@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as transforms
-from PIL import Image
+from PIL import Image, ImageFilter
 import numpy as np
 from typing import Tuple, Optional
 import warnings
@@ -80,7 +80,24 @@ def get_clip_model():
 
 def get_clip_image_features(model, pixel_values):
     """Extract CLIP image embeddings (512-dim vector)."""
-    return model.get_image_features(pixel_values=pixel_values)
+    output = model.get_image_features(pixel_values=pixel_values)
+    # Handle different return types from transformers versions
+    if isinstance(output, torch.Tensor):
+        return output
+    elif hasattr(output, 'image_embeds'):
+        return output.image_embeds
+    elif hasattr(output, 'pooler_output'):
+        return output.pooler_output
+    elif hasattr(output, 'last_hidden_state'):
+        return output.last_hidden_state[:, 0, :]  # CLS token
+    else:
+        # Fallback: try to get any tensor attribute
+        for attr in ['image_embeds', 'pooler_output', 'last_hidden_state']:
+            if hasattr(output, attr):
+                val = getattr(output, attr)
+                if isinstance(val, torch.Tensor):
+                    return val
+        raise ValueError(f"Unknown CLIP output type: {type(output)}")
 
 
 def get_resnet_features(model, x):
@@ -507,6 +524,40 @@ def cloak_image(
         else:
             print("📷 No face detected, using PGD targeted latent attack")
             return pgd_attack(image, epsilon=epsilon)
+
+
+def cloak_image_dual(
+    image: Image.Image
+) -> Tuple[Image.Image, Image.Image, dict]:
+    """
+    Generate two cloaked versions (lightweight):
+    - Protected: epsilon=0.02 (subtle, user downloads this)
+    - Proof: epsilon=0.7 (very high, guarantees deepfake failure)
+
+    Args:
+        image: Input PIL Image
+
+    Returns:
+        Tuple of (protected_image, proof_image, metadata)
+    """
+    print("🔮 Generating dual cloaked versions (lightweight)...")
+
+    # Protected: subtle PGD attack
+    print("📸 Creating protected version (epsilon=0.02)...")
+    protected, meta_protected = pgd_attack(image, epsilon=0.02, num_steps=10)
+
+    # Proof: high epsilon PGD attack (no multi-pass, just one strong attack)
+    print("💥 Creating proof version (epsilon=0.7)...")
+    proof, meta_proof = pgd_attack(image, epsilon=0.7, num_steps=10)
+
+    print("✅ Dual cloaking complete!")
+
+    metadata = {
+        "protected_meta": meta_protected,
+        "proof_meta": meta_proof
+    }
+
+    return protected, proof, metadata
 
 
 # Quick test

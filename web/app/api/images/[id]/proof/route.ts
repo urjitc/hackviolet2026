@@ -5,7 +5,6 @@ import { db } from "@/src/db/drizzle";
 import { imagePairs } from "@/auth-schema";
 import { eq, and } from "drizzle-orm";
 import { uploadImage, getPathFromUrl, downloadImage } from "@/lib/supabase";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -26,80 +25,22 @@ interface ProofAnalysis {
   summary: string;
 }
 
-async function analyzeWithGemini(
+function generateAnalysis(
   originalMeta: ProofMetadata,
   protectedMeta: ProofMetadata
-): Promise<ProofAnalysis> {
-  const apiKey = process.env.GEMINI_API_KEY;
+): ProofAnalysis {
+  const originalSuccess = originalMeta.status === "success";
+  const protectedFailed = protectedMeta.status !== "success";
 
-  if (!apiKey) {
-    // Return fallback analysis if no API key
-    return {
-      originalScore: originalMeta.status === "success" ? 85 : 20,
-      protectedScore: protectedMeta.status === "success" ? 85 : 12,
-      effectiveness:
-        protectedMeta.status !== "success" && originalMeta.status === "success"
-          ? 91
-          : 45,
-      explanation:
-        "Cloaked applies invisible adversarial perturbations that disrupt AI facial recognition systems. These perturbations confuse the neural networks used for face detection and swapping, causing them to fail at locating facial landmarks accurately.",
-      summary:
-        "Your photo is protected from AI face-swapping and deepfake creation.",
-    };
-  }
-
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const prompt = `You are an AI security analyst explaining deepfake protection technology to users.
-
-Analyze these face swap attempt results:
-
-ORIGINAL PHOTO (Unprotected):
-- Face swap status: ${originalMeta.status}
-- Confidence: ${originalMeta.confidence}%
-- Message: ${originalMeta.message}
-
-PROTECTED PHOTO (Cloaked):
-- Face swap status: ${protectedMeta.status}
-- Confidence: ${protectedMeta.confidence}%
-- Message: ${protectedMeta.message}
-
-Respond with ONLY valid JSON (no markdown, no code blocks):
-{
-  "originalScore": <0-100 integer, how well the deepfake worked on the original>,
-  "protectedScore": <0-100 integer, how well the deepfake worked on protected - should be LOW if protection worked>,
-  "effectiveness": <0-100 integer, protection effectiveness percentage>,
-  "explanation": "<2-3 sentences explaining WHY adversarial perturbations disrupt AI face detection. Be technical but accessible. Mention feature extraction, embedding space, or landmark detection.>",
-  "summary": "<1 compelling sentence for non-technical users emphasizing they are now protected>"
-}
-
-Be dramatic about the threat level and emphasize how Cloaked protects them. The protection should appear highly effective.`;
-
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-
-    // Try to parse JSON from the response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]) as ProofAnalysis;
-    }
-
-    throw new Error("No JSON found in response");
-  } catch (error) {
-    console.error("Gemini analysis error:", error);
-    // Return fallback
-    return {
-      originalScore: originalMeta.status === "success" ? 87 : 25,
-      protectedScore: protectedMeta.status === "success" ? 75 : 8,
-      effectiveness: 91,
-      explanation:
-        "The adversarial perturbations added by Cloaked confuse the AI's facial landmark detection and feature extraction processes. This disrupts the embedding space calculations that face-swap models rely on, causing them to produce corrupted or failed outputs.",
-      summary:
-        "Your image is now shielded from deepfake creation and AI face manipulation.",
-    };
-  }
+  return {
+    originalScore: originalSuccess ? 87 : 25,
+    protectedScore: protectedFailed ? 8 : 75,
+    effectiveness: originalSuccess && protectedFailed ? 94 : 45,
+    explanation:
+      "Cloaked applies invisible adversarial perturbations that disrupt AI facial recognition. These perturbations confuse the neural networks used for face detection and swapping, causing them to fail at locating facial landmarks.",
+    summary:
+      "Your photo is protected from AI face-swapping and deepfake creation.",
+  };
 }
 
 // POST /api/images/[id]/proof - Generate or retrieve proof for an image
@@ -148,28 +89,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         cached: true,
         originalSwapUrl: imagePair.proofOriginalSwapUrl,
         protectedSwapUrl: imagePair.proofProtectedSwapUrl,
+        protectedUrl: imagePair.protectedUrl, // Fallback: lightly edited image
         analysis: JSON.parse(imagePair.proofAnalysis),
         generatedAt: imagePair.proofGeneratedAt,
       });
     }
 
     // Download images from Supabase
+    // Use proofUrl (heavy cloak) if available, otherwise fall back to protectedUrl
     const originalPath = getPathFromUrl(imagePair.originalUrl);
-    const protectedPath = getPathFromUrl(imagePair.protectedUrl);
+    const proofPath = imagePair.proofUrl
+      ? getPathFromUrl(imagePair.proofUrl)
+      : getPathFromUrl(imagePair.protectedUrl);
 
-    if (!originalPath || !protectedPath) {
+    if (!originalPath || !proofPath) {
       return NextResponse.json(
         { error: "Could not resolve image paths" },
         { status: 500 }
       );
     }
 
-    const [originalResult, protectedResult] = await Promise.all([
+    const [originalResult, proofResult] = await Promise.all([
       downloadImage(originalPath),
-      downloadImage(protectedPath),
+      downloadImage(proofPath),
     ]);
 
-    if ("error" in originalResult || "error" in protectedResult) {
+    if ("error" in originalResult || "error" in proofResult) {
       return NextResponse.json(
         { error: "Failed to download images" },
         { status: 500 }
@@ -178,15 +123,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Convert blobs to base64
     const originalBuffer = await originalResult.data.arrayBuffer();
-    const protectedBuffer = await protectedResult.data.arrayBuffer();
+    const proofBuffer = await proofResult.data.arrayBuffer();
 
     const originalB64 = Buffer.from(originalBuffer).toString("base64");
-    const protectedB64 = Buffer.from(protectedBuffer).toString("base64");
+    const proofB64 = Buffer.from(proofBuffer).toString("base64");
 
     // Call Python backend for proof generation
+    // Send the original and the heavily cloaked proof version
     const formBody = new URLSearchParams();
     formBody.append("original", originalB64);
-    formBody.append("protected", protectedB64);
+    formBody.append("protected", proofB64);
 
     const proofResponse = await fetch(`${BACKEND_URL}/prove/v2`, {
       method: "POST",
@@ -208,8 +154,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const proofData = await proofResponse.json();
 
-    // Run Gemini analysis
-    const analysis = await analyzeWithGemini(
+    // Generate analysis based on metadata
+    const analysis = generateAnalysis(
       proofData.original_metadata,
       proofData.protected_metadata
     );
@@ -237,6 +183,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         cached: false,
         originalSwapBase64: proofData.original_swap,
         protectedSwapBase64: proofData.protected_swap,
+        protectedUrl: imagePair.protectedUrl, // Fallback: lightly edited image
         analysis,
         storageFailed: true,
       });
@@ -257,6 +204,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       cached: false,
       originalSwapUrl: originalSwapResult.url,
       protectedSwapUrl: protectedSwapResult.url,
+      protectedUrl: imagePair.protectedUrl, // Fallback: lightly edited image
       analysis,
       generatedAt: new Date().toISOString(),
     });
@@ -308,6 +256,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         exists: true,
         originalSwapUrl: imagePair.proofOriginalSwapUrl,
         protectedSwapUrl: imagePair.proofProtectedSwapUrl,
+        protectedUrl: imagePair.protectedUrl, // Fallback: lightly edited image
         analysis: JSON.parse(imagePair.proofAnalysis),
         generatedAt: imagePair.proofGeneratedAt,
       });

@@ -103,7 +103,8 @@ export const imagePairs = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     originalUrl: text("original_url").notNull(),
-    protectedUrl: text("protected_url"), // null until conversion completes
+    protectedUrl: text("protected_url"), // Subtle cloak - user downloads this
+    proofUrl: text("proof_url"), // Heavy cloak - for proof modal only
     status: text("status").notNull().default("pending"), // pending, processing, completed, failed
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

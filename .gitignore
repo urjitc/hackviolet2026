@@ -54,3 +54,6 @@ next-env.d.ts
 # IDE and agent folders
 .agent/
 .windsurf/
+backend/venv/
+backend/uploads/*.png
+backend/results/*.png
