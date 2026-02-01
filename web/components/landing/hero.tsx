@@ -185,14 +185,7 @@ export function Hero() {
                                 </div>
                             </div>
 
-                            <div className="absolute bottom-10 right-10">
-                                <div className="flex flex-col items-center gap-1">
-                                    <div className="w-16 h-1.5 bg-gray-700/50 rounded-full overflow-hidden border border-white/10">
-                                        <div className="h-full bg-green-500 w-[80%]" />
-                                    </div>
-                                    <span className="text-[10px] text-gray-400 font-mono tracking-wider">BATTERY</span>
-                                </div>
-                            </div>
+
 
                         </div>
                     </div>
