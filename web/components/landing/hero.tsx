@@ -94,10 +94,14 @@ export function Hero({ onGetStarted }: HeroProps) {
                                 {/* The "Screen" Bezel */}
                                 <div className="relative w-full h-full bg-[#151515] rounded-xl p-4 shadow-[inset_0_4px_20px_rgba(0,0,0,0.9),inset_0_-2px_10px_rgba(0,0,0,0.5)] border-[6px] border-t-gray-800 border-l-gray-700 border-r-gray-600 border-b-gray-500">
                                     {/* The Actual LCD Screen */}
+                                    {/* Actual LCD Screen */}
                                     <div className="relative w-full h-full bg-black rounded-lg overflow-hidden group shadow-[inset_0_0_30px_rgba(0,0,0,1)]">
+                                        {/* Flash Overlay */}
+                                        <div className={`absolute inset-0 bg-white z-20 pointer-events-none ${printed ? 'animate-camera-flash' : 'hidden'}`} />
+
                                         {/* Blurred Nature Background */}
                                         <div
-                                            className={`absolute inset-0 bg-cover bg-center md:blur-md group-hover:blur-sm transition-all duration-700 ease-in-out scale-105 ${printed ? 'animate-flash' : ''}`}
+                                            className={`absolute inset-0 bg-cover bg-center md:blur-md group-hover:blur-sm transition-all duration-700 ease-in-out scale-105`}
                                             style={{
                                                 backgroundImage: printed ? 'none' : "url('https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2076&auto=format&fit=crop')"
                                             }}
@@ -106,9 +110,9 @@ export function Hero({ onGetStarted }: HeroProps) {
                                         <div className="absolute inset-0 bg-black/40" />
 
                                         {/* Screen Content */}
-                                        <div className="absolute inset-0 flex flex-col justify-center p-12 md:p-24 items-start text-left">
-                                            {/* Cloaked Logo - Top Left of Screen */}
-                                            <div className="absolute top-8 left-8 z-50 flex items-center gap-2">
+                                        <div className="absolute inset-0 flex flex-col justify-center p-12 md:p-24 items-start text-left z-10">
+                                            {/* Cloaked Logo - Top Left of Screen using absolute positioning relative to screen container to avoid layout shifts */}
+                                            <div className="absolute top-8 left-8 flex items-center gap-2">
                                                 <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center shadow-lg">
                                                     <div className="w-3 h-3 bg-white rounded-full" />
                                                 </div>
@@ -142,7 +146,7 @@ export function Hero({ onGetStarted }: HeroProps) {
                                         </div>
 
                                         {/* Screen Glare Reflection */}
-                                        <div className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-gradient-to-br from-white/5 via-transparent to-transparent rotate-45 pointer-events-none" />
+                                        <div className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-gradient-to-br from-white/5 via-transparent to-transparent rotate-45 pointer-events-none z-30" />
                                     </div>
                                 </div>
                             </div>
@@ -151,32 +155,35 @@ export function Hero({ onGetStarted }: HeroProps) {
 
                     {/* --- RIGHT: Controls Area Wrapper --- */}
                     <div className="relative h-full flex-1 md:max-w-[340px] lg:max-w-[400px] p-4 z-20 bg-gradient-to-br from-[#DCD8C9] to-[#C8C4B5]">
-                        <div className="relative w-full h-full p-8 flex flex-col items-center justify-center gap-12 bg-gradient-to-br from-black/5 to-black/10 backdrop-blur-sm rounded-3xl border-6 border-t-white/50 border-l-white/40 border-r-black/10 border-b-black/15 shadow-inner">
+                        <div className="relative w-full h-full p-8 flex flex-col items-center justify-between py-12 bg-gradient-to-br from-black/5 to-black/10 backdrop-blur-sm rounded-3xl border-6 border-t-white/50 border-l-white/40 border-r-black/10 border-b-black/15 shadow-inner">
 
                             {/* Top "Get Started" Button (Shutter-like) */}
-                            <div className="absolute top-8 left-1/2 -translate-x-1/2">
+                            <div className="relative">
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95, y: 2 }}
                                     onClick={handleGetStarted}
-                                    className="relative group px-8 py-4 bg-gradient-to-b from-gray-100 to-gray-300 rounded-full shadow-[0_4px_0_rgb(156,163,175),0_10px_10px_rgba(0,0,0,0.2)] active:shadow-none active:translate-y-1 transition-all flex items-center gap-2 border border-white/50 whitespace-nowrap"
+                                    className="relative group px-8 py-4 bg-gradient-to-b from-gray-100 to-gray-300 rounded-full shadow-[0_4px_0_rgb(156,163,175),0_10px_10px_rgba(0,0,0,0.2)] active:shadow-none active:translate-y-1 transition-all flex items-center gap-2 border border-white/50 whitespace-nowrap cursor-pointer"
                                 >
-                                    <div className="w-4 h-4 rounded-full bg-red-500 shadow-inner animate-pulse-red" />
+                                    <div className="relative flex h-4 w-4">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 shadow-inner"></span>
+                                    </div>
                                     <span className="text-gray-700 font-bold text-sm tracking-wide group-hover:text-gray-900">GET STARTED</span>
                                 </motion.button>
                             </div>
 
                             {/* Thumb Grip Texture Area */}
-                            <div className="absolute top-36 left-1/2 -translate-x-1/2 w-40 h-24 opacity-30 bg-[radial-gradient(circle,rgba(0,0,0,0.8)_2px,transparent_2.5px)] bg-[length:6px_6px] rounded-2xl shadow-inner border border-white/5" />
+                            <div className="w-40 h-24 opacity-30 bg-[radial-gradient(circle,rgba(0,0,0,0.8)_2px,transparent_2.5px)] bg-[length:6px_6px] rounded-2xl shadow-inner border border-white/5" />
 
                             {/* Action Buttons - Horizontal Above Dial */}
-                            <div className="flex gap-8 mb-8 mt-48">
+                            <div className="flex gap-8">
                                 <ButtonMetallic icon={<Settings size={24} />} label="MENU" />
                                 <ButtonMetallic icon={<Maximize2 size={24} />} label="DISP" />
                             </div>
 
                             {/* Mode Dial - Centered vertically */}
-                            <div className="relative group scale-125 mb-20">
+                            <div className="relative group scale-125">
                                 <div className="absolute inset-0 rounded-full bg-black/50 blur-md transform translate-y-2" />
                                 <motion.div
                                     animate={{ rotate: dialRotation }}
@@ -218,12 +225,21 @@ export function Hero({ onGetStarted }: HeroProps) {
 }
 
 function ButtonMetallic({ icon, label }: { icon: React.ReactNode, label?: string }) {
+    const [rotation, setRotation] = useState(0);
+
+    const handleClick = () => {
+        setRotation(prev => prev + 360);
+    };
+
     return (
         <div className="flex flex-col items-center gap-2">
             <motion.button
                 whileHover={{ y: 1 }}
                 whileTap={{ y: 2, scale: 0.95 }}
-                className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-200 to-gray-400 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_2px_rgba(255,255,255,0.8)] border border-gray-400 flex items-center justify-center text-gray-600 relative overflow-hidden group"
+                animate={{ rotate: rotation }}
+                transition={{ type: "spring", stiffness: 50, damping: 15 }}
+                onClick={handleClick}
+                className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-200 to-gray-400 shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_2px_rgba(255,255,255,0.8)] border border-gray-400 flex items-center justify-center text-gray-600 relative overflow-hidden group cursor-pointer"
             >
                 <div className="absolute inset-0 bg-white/40 opacity-0 group-hover:opacity-100 transition-opacity" />
                 {icon}

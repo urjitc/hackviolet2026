@@ -205,29 +205,23 @@
   }
 }
 
+
+
 @layer utilities {
-  .animate-pulse-red {
-    animation: pulseRed 2s infinite;
+  .animate-camera-flash {
+    animation: cameraFlash 0.3s ease-out forwards;
   }
 }
 
-@keyframes pulseRed {
+@keyframes cameraFlash {
   0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-  }
-
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    opacity: 1;
   }
 
   100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    opacity: 0;
   }
 }
-
 
 /* Handwriting font utility */
 .font-handwriting {
