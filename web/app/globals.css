@@ -136,8 +136,90 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html,
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .animate-reveal-camera {
+    animation: revealCamera 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: center center;
+  }
+}
+
+@keyframes revealCamera {
+  0% {
+    opacity: 0;
+    transform: scale(2.2) translateX(15%);
+  }
+
+  15% {
+    opacity: 1;
+    transform: scale(2.2) translateX(15%);
+  }
+
+  50% {
+    transform: scale(2.2) translateX(15%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateX(0);
+  }
+}
+
+@layer utilities {
+  .animate-print-polaroid {
+    animation: printPolaroid 3.5s ease-out forwards;
+    animation-delay: 3s;
+    /* Wait for camera reveal */
+  }
+}
+
+@keyframes printPolaroid {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  30% {
+    transform: translateY(60vh) rotate(-3deg) scale(0.85);
+    opacity: 1;
+  }
+
+  80% {
+    transform: translateY(60vh) rotate(-3deg) scale(0.85);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(60vh) rotate(-3deg) scale(0.85);
+    opacity: 0;
+  }
+}
+
+
+
+@layer utilities {
+  .animate-camera-flash {
+    animation: cameraFlash 0.3s ease-out forwards;
+  }
+}
+
+@keyframes cameraFlash {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
 
@@ -163,12 +245,10 @@
 
 /* Polaroid frame styling - vintage paper look */
 .polaroid {
-  background: linear-gradient(
-    135deg,
-    var(--vintage-cream) 0%,
-    var(--vintage-paper) 50%,
-    oklch(0.90 0.03 80) 100%
-  );
+  background: linear-gradient(135deg,
+      var(--vintage-cream) 0%,
+      var(--vintage-paper) 50%,
+      oklch(0.90 0.03 80) 100%);
   padding: 0.75rem 0.75rem 2.5rem 0.75rem;
   box-shadow:
     0 4px 8px -2px oklch(0.3 0.05 60 / 0.15),
@@ -233,22 +313,18 @@
   height: 7px;
   /* Rope with brown shade variations */
   background:
-    repeating-linear-gradient(
-      90deg,
+    repeating-linear-gradient(90deg,
       #7B6245 0px,
       #5C4A38 4px,
       #8B7255 8px,
       #6B5A48 12px,
-      #7B6245 16px
-    ),
-    linear-gradient(
-      to bottom,
+      #7B6245 16px),
+    linear-gradient(to bottom,
       #8B7255 0%,
       #5C4A38 35%,
       #4A3C2E 50%,
       #5C4A38 65%,
-      #8B7255 100%
-    );
+      #8B7255 100%);
   background-blend-mode: multiply;
   border-radius: 3.5px;
   box-shadow:
@@ -264,15 +340,33 @@
 }
 
 @keyframes swing {
-  0%, 100% { transform: rotate(-2deg); }
-  50% { transform: rotate(2deg); }
+
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+
+  50% {
+    transform: rotate(2deg);
+  }
 }
 
 /* Stagger animation delays for organic feel */
-.hanging-polaroid:nth-child(2n) { animation-delay: -1s; }
-.hanging-polaroid:nth-child(3n) { animation-delay: -2s; }
-.hanging-polaroid:nth-child(4n) { animation-delay: -0.5s; }
-.hanging-polaroid:nth-child(5n) { animation-delay: -1.5s; }
+.hanging-polaroid:nth-child(2n) {
+  animation-delay: -1s;
+}
+
+.hanging-polaroid:nth-child(3n) {
+  animation-delay: -2s;
+}
+
+.hanging-polaroid:nth-child(4n) {
+  animation-delay: -0.5s;
+}
+
+.hanging-polaroid:nth-child(5n) {
+  animation-delay: -1.5s;
+}
 
 /* ========================================
    DARKROOM GALLERY STYLES
@@ -290,12 +384,10 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 30%,
-    var(--darkroom-glow) 70%,
-    oklch(0.35 0.18 25 / 0.25) 100%
-  );
+  background: radial-gradient(ellipse at center,
+      transparent 30%,
+      var(--darkroom-glow) 70%,
+      oklch(0.35 0.18 25 / 0.25) 100%);
   pointer-events: none;
   z-index: 1;
 }
@@ -303,12 +395,10 @@
 /* Darkroom clothesline - thicker, more visible */
 .darkroom .clothesline::before {
   height: 4px;
-  background: linear-gradient(
-    to bottom,
-    oklch(0.35 0.02 60) 0%,
-    oklch(0.25 0.02 60) 50%,
-    oklch(0.35 0.02 60) 100%
-  );
+  background: linear-gradient(to bottom,
+      oklch(0.35 0.02 60) 0%,
+      oklch(0.25 0.02 60) 50%,
+      oklch(0.35 0.02 60) 100%);
   box-shadow:
     0 2px 4px oklch(0 0 0 / 0.4),
     0 4px 8px oklch(0 0 0 / 0.2);
@@ -316,11 +406,9 @@
 
 /* Darkroom polaroid card styling */
 .darkroom-polaroid {
-  background: linear-gradient(
-    135deg,
-    oklch(0.94 0.02 85) 0%,
-    oklch(0.90 0.025 82) 100%
-  );
+  background: linear-gradient(135deg,
+      oklch(0.94 0.02 85) 0%,
+      oklch(0.90 0.025 82) 100%);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -337,11 +425,9 @@
   content: '';
   position: absolute;
   inset: -10px;
-  background: radial-gradient(
-    ellipse at center,
-    var(--darkroom-glow) 0%,
-    transparent 70%
-  );
+  background: radial-gradient(ellipse at center,
+      var(--darkroom-glow) 0%,
+      transparent 70%);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
@@ -375,10 +461,12 @@
     opacity: 0;
     transform: rotate(-15deg) scale(1.4);
   }
+
   50% {
     opacity: 0.95;
     transform: rotate(-10deg) scale(0.95);
   }
+
   100% {
     opacity: 0.9;
     transform: rotate(-12deg) scale(1);
@@ -401,10 +489,12 @@
     opacity: 0;
     transform: rotate(-15deg) scale(0.95);
   }
+
   50% {
     opacity: 0.9;
     transform: rotate(-10deg) scale(0.7);
   }
+
   100% {
     opacity: 0.85;
     transform: rotate(-12deg) scale(0.75);
@@ -439,11 +529,9 @@
    ======================================== */
 
 .auth-card {
-  background: linear-gradient(
-    135deg,
-    var(--vintage-cream) 0%,
-    var(--vintage-paper) 100%
-  );
+  background: linear-gradient(135deg,
+      var(--vintage-cream) 0%,
+      var(--vintage-paper) 100%);
   border: 1px solid oklch(0.85 0.03 80);
   box-shadow:
     0 8px 32px -4px oklch(0.3 0.05 60 / 0.15),
@@ -455,6 +543,7 @@
   border: 1px solid oklch(0.85 0.03 75);
   transition: all 0.2s ease;
 }
+
 
 .auth-input:focus {
   border-color: var(--vintage-amber);

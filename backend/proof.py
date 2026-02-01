@@ -16,174 +16,21 @@ import os
 warnings.filterwarnings("ignore")
 
 # Try to import InsightFace, fall back to mock if not available
-INSIGHTFACE_AVAILABLE = False
-SWAPPER_AVAILABLE = False
-face_app = None
-swapper = None
-
-# Path to models directory
-MODELS_DIR = Path(__file__).parent / "models"
-
 try:
-    import insightface
-    from insightface.app import FaceAnalysis
-    INSIGHTFACE_AVAILABLE = True
-    print("✅ InsightFace loaded successfully")
+    from cloak import detect_faces, get_face_app
+    print("✅ InsightFace loaded via cloak.py")
 except ImportError:
-    print("⚠️ InsightFace not available - using mock proof engine")
-
+    print("⚠️ cloak.py not available or InsightFace missing - using mock proof engine")
+    def detect_faces(image): return []
+    def get_face_app(): return None
 
 def init_face_analyzer():
-    """Initialize the face analysis model."""
-    global face_app
-    if INSIGHTFACE_AVAILABLE and face_app is None:
-        try:
-            face_app = FaceAnalysis(providers=['CPUExecutionProvider'])
-            face_app.prepare(ctx_id=0, det_size=(640, 640))
-            print("✅ Face analyzer initialized")
-        except Exception as e:
-            print(f"⚠️ Failed to initialize face analyzer: {e}")
-
-
-def init_swapper():
-    """Initialize the face swapper model (inswapper_128)."""
-    global swapper, SWAPPER_AVAILABLE
-    if INSIGHTFACE_AVAILABLE and swapper is None:
-        swapper_path = MODELS_DIR / "inswapper_128.onnx"
-        if swapper_path.exists():
-            try:
-                swapper = insightface.model_zoo.get_model(
-                    str(swapper_path),
-                    providers=['CPUExecutionProvider']
-                )
-                SWAPPER_AVAILABLE = True
-                print("✅ Face swapper (inswapper_128) initialized")
-            except Exception as e:
-                print(f"⚠️ Failed to initialize face swapper: {e}")
-        else:
-            print(f"⚠️ Swapper model not found at {swapper_path}")
-
-
-def get_stock_face() -> Optional[Image.Image]:
-    """Load the stock face image for swap target."""
-    stock_path = MODELS_DIR / "stock_face.jpg"
-    if stock_path.exists():
-        return Image.open(stock_path).convert("RGB")
-    # Try PNG as fallback
-    stock_path_png = MODELS_DIR / "stock_face.png"
-    if stock_path_png.exists():
-        return Image.open(stock_path_png).convert("RGB")
-    return None
-
-
-def real_face_swap(
-    source_img: Image.Image,
-    target_face_img: Optional[Image.Image] = None
-) -> Tuple[Image.Image, dict]:
-    """
-    Attempt actual face swap using inswapper_128.
-
-    Swaps the face from target_face_img onto source_img.
-    Returns (result_image, metadata) with success/failure info.
-
-    Args:
-        source_img: The image to swap face onto
-        target_face_img: The image containing the face to use (defaults to stock face)
-
-    Returns:
-        Tuple of (swapped_image, metadata_dict)
-    """
-    init_face_analyzer()
-    init_swapper()
-
-    # Load stock face if not provided
-    if target_face_img is None:
-        target_face_img = get_stock_face()
-
-    if target_face_img is None:
-        return source_img, {
-            "status": "error",
-            "reason": "no_stock_face",
-            "confidence": 0,
-            "message": "Stock face image not found"
-        }
-
-    if not SWAPPER_AVAILABLE or swapper is None:
-        # Fall back to simulation if swapper not available
-        return source_img, {
-            "status": "error",
-            "reason": "swapper_unavailable",
-            "confidence": 0,
-            "message": "Face swapper model not available"
-        }
-
-    # Convert images to numpy arrays (BGR for InsightFace)
-    source_array = np.array(source_img)[:, :, ::-1].copy()
-    target_array = np.array(target_face_img)[:, :, ::-1].copy()
-
-    # Detect faces in source
-    source_faces = face_app.get(source_array)
-    if not source_faces:
-        return source_img, {
-            "status": "no_face",
-            "reason": "no_source_face_detected",
-            "confidence": 0,
-            "message": "No face detected in source image"
-        }
-
-    # Detect face in target (the face we want to swap in)
-    target_faces = face_app.get(target_array)
-    if not target_faces:
-        return source_img, {
-            "status": "error",
-            "reason": "no_target_face_detected",
-            "confidence": 0,
-            "message": "No face detected in target/stock image"
-        }
-
-    # Get the primary face from each
-    source_face = source_faces[0]
-    target_face = target_faces[0]
-
-    # Attempt the swap
-    try:
-        result_array = swapper.get(source_array, source_face, target_face, paste_back=True)
-        # Convert back to RGB PIL Image
-        result_img = Image.fromarray(result_array[:, :, ::-1])
-
-        return result_img, {
-            "status": "success",
-            "reason": "face_swap_complete",
-            "confidence": float(source_face.det_score) * 100,
-            "message": "Face swap successful"
-        }
-    except Exception as e:
-        return source_img, {
-            "status": "failed",
-            "reason": "swap_error",
-            "confidence": float(source_face.det_score) * 100 if hasattr(source_face, 'det_score') else 0,
-            "message": f"Face swap failed: {str(e)}"
-        }
-
-
-def detect_faces(image: Image.Image) -> list:
-    """Detect faces in an image."""
-    if not INSIGHTFACE_AVAILABLE or face_app is None:
-        return []
-
-    # Convert PIL to numpy
-    img_array = np.array(image)
-
-    # InsightFace expects BGR
-    if len(img_array.shape) == 3 and img_array.shape[2] == 3:
-        img_array = img_array[:, :, ::-1]
-
-    try:
-        faces = face_app.get(img_array)
-        return faces
-    except Exception as e:
-        print(f"Face detection error: {e}")
-        return []
+    """Initialize the face analysis model via cloak.py."""
+    app = get_face_app()
+    if app:
+        print("✅ Face analyzer initialized (via cloak.py)")
+    else:
+        print("⚠️ Failed to initialize face analyzer")
 
 
 def create_glitched_image(image: Image.Image, intensity: float = 0.5) -> Image.Image:
@@ -276,7 +123,8 @@ def simulate_deepfake(
     init_face_analyzer()
 
     # Detect faces
-    faces = detect_faces(image)
+    # cloak.detect_faces expects numpy array
+    faces = detect_faces(np.array(image))
     face_count = len(faces)
 
     if is_cloaked:
