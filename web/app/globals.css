@@ -120,7 +120,61 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html,
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .animate-reveal-camera {
+    animation: revealCamera 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: center center;
+  }
+}
+
+@keyframes revealCamera {
+  0% {
+    opacity: 0;
+    transform: scale(2.2) translateX(15%);
+  }
+
+  15% {
+    opacity: 1;
+    transform: scale(2.2) translateX(15%);
+  }
+
+  50% {
+    transform: scale(2.2) translateX(15%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateX(0);
+  }
+}
+
+@layer utilities {
+  .animate-print-polaroid {
+    animation: printPolaroid 8s ease-out forwards;
+    animation-delay: 3s;
+    /* Wait for camera reveal */
+  }
+}
+
+@keyframes printPolaroid {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(150vh) rotate(-10deg);
+    opacity: 1;
   }
 }
