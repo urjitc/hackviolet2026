@@ -14,48 +14,21 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # Try to import InsightFace, fall back to mock if not available
-INSIGHTFACE_AVAILABLE = False
-face_app = None
-
 try:
-    import insightface
-    from insightface.app import FaceAnalysis
-    INSIGHTFACE_AVAILABLE = True
-    print("✅ InsightFace loaded successfully")
+    from cloak import detect_faces, get_face_app
+    print("✅ InsightFace loaded via cloak.py")
 except ImportError:
-    print("⚠️ InsightFace not available - using mock proof engine")
-
+    print("⚠️ cloak.py not available or InsightFace missing - using mock proof engine")
+    def detect_faces(image): return []
+    def get_face_app(): return None
 
 def init_face_analyzer():
-    """Initialize the face analysis model."""
-    global face_app
-    if INSIGHTFACE_AVAILABLE and face_app is None:
-        try:
-            face_app = FaceAnalysis(providers=['CPUExecutionProvider'])
-            face_app.prepare(ctx_id=0, det_size=(640, 640))
-            print("✅ Face analyzer initialized")
-        except Exception as e:
-            print(f"⚠️ Failed to initialize face analyzer: {e}")
-
-
-def detect_faces(image: Image.Image) -> list:
-    """Detect faces in an image."""
-    if not INSIGHTFACE_AVAILABLE or face_app is None:
-        return []
-
-    # Convert PIL to numpy
-    img_array = np.array(image)
-
-    # InsightFace expects BGR
-    if len(img_array.shape) == 3 and img_array.shape[2] == 3:
-        img_array = img_array[:, :, ::-1]
-
-    try:
-        faces = face_app.get(img_array)
-        return faces
-    except Exception as e:
-        print(f"Face detection error: {e}")
-        return []
+    """Initialize the face analysis model via cloak.py."""
+    app = get_face_app()
+    if app:
+        print("✅ Face analyzer initialized (via cloak.py)")
+    else:
+        print("⚠️ Failed to initialize face analyzer")
 
 
 def create_glitched_image(image: Image.Image, intensity: float = 0.5) -> Image.Image:
@@ -148,7 +121,8 @@ def simulate_deepfake(
     init_face_analyzer()
 
     # Detect faces
-    faces = detect_faces(image)
+    # cloak.detect_faces expects numpy array
+    faces = detect_faces(np.array(image))
     face_count = len(faces)
 
     if is_cloaked:

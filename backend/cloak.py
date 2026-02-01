@@ -104,7 +104,7 @@ def tensor_to_pil(tensor: torch.Tensor) -> Image.Image:
 
 def fgsm_attack(
     image: Image.Image,
-    epsilon: float = 0.03,
+    epsilon: float = 0.015,
     target_size: int = 512
 ) -> Tuple[Image.Image, dict]:
     """
@@ -144,101 +144,86 @@ def fgsm_attack(
     return cloaked_image, metadata
 
 
+
+
+
 def face_targeted_attack(
     image: Image.Image,
-    epsilon: float = 0.05,
-    max_iterations: int = 10,
-    noise_scale: float = 0.02
+    epsilon: float = 0.03,
+    max_iterations: int = 18,
 ) -> Tuple[Image.Image, dict]:
     """
     Face-targeted adversarial attack.
 
-    Adds noise specifically designed to break face detection.
-    More effective against deepfakes than general FGSM.
-
-    Strategy:
-    1. Detect face region
-    2. Add structured noise to face area
-    3. Verify face detection fails
-    4. Keep noise minimal for visual quality
+    Iteratively adds smooth noise until face detection fails.
+    InsightFace threshold is 0.5 - we need to push confidence below that.
     """
     original_size = image.size
     img_array = np.array(image)
 
-    # Detect faces first
     faces = detect_faces(img_array)
 
     if len(faces) == 0:
-        # No face detected - fall back to FGSM
         print("⚠️ No face detected, using FGSM fallback")
         return fgsm_attack(image, epsilon=epsilon)
 
-    print(f"🎯 Found {len(faces)} face(s), applying targeted attack...")
+    initial_conf = faces[0].det_score if hasattr(faces[0], 'det_score') else 1.0
+    print(f"🎯 Found {len(faces)} face(s), confidence={initial_conf:.3f} (threshold=0.5)")
 
-    # Work with float array
     img_float = img_array.astype(np.float32) / 255.0
+    result_float = img_float.copy()
 
-    # Get face bounding boxes
     for face in faces:
         bbox = face.bbox.astype(int)
         x1, y1, x2, y2 = bbox
 
-        # Add padding around face (attack slightly larger area)
-        pad = int((x2 - x1) * 0.2)
+        pad = int((x2 - x1) * 0.15)
         x1 = max(0, x1 - pad)
         y1 = max(0, y1 - pad)
         x2 = min(img_array.shape[1], x2 + pad)
         y2 = min(img_array.shape[0], y2 + pad)
 
-        # Extract face region
         face_region = img_float[y1:y2, x1:x2].copy()
+        original_face = face_region.copy()
+        h, w = face_region.shape[:2]
 
-        # Generate adversarial noise for face region
-        # Use multiple noise patterns for robustness
+        # Smooth elliptical mask
+        y_coords, x_coords = np.ogrid[:h, :w]
+        center_y, center_x = h / 2, w / 2
+        dist = np.sqrt(((y_coords - center_y) / (h / 2)) ** 2 + ((x_coords - center_x) / (w / 2)) ** 2)
+        smooth_mask = np.clip(1.0 - dist * 0.6, 0, 1) ** 2
+        smooth_mask = np.stack([smooth_mask, smooth_mask, smooth_mask], axis=-1)
+
+        cumulative_noise = np.zeros_like(face_region)
+        noise_scale = epsilon * 0.3
+
         for iteration in range(max_iterations):
-            # Create structured noise patterns
-            h, w = face_region.shape[:2]
+            noise = np.random.randn(h, w, 3).astype(np.float32) * noise_scale * smooth_mask
+            cumulative_noise += noise
 
-            # Pattern 1: Random noise
-            noise1 = np.random.randn(h, w, 3).astype(np.float32) * noise_scale
+            noised_face = original_face + cumulative_noise
+            noised_face = np.clip(noised_face, 0, 1)
 
-            # Pattern 2: High-frequency patterns (effective against neural nets)
-            freq_noise = np.zeros((h, w, 3), dtype=np.float32)
-            for i in range(h):
-                for j in range(w):
-                    freq_noise[i, j] = noise_scale * 0.5 * ((-1) ** (i + j))
-
-            # Pattern 3: Gradient-like noise
-            grad_noise = np.zeros((h, w, 3), dtype=np.float32)
-            grad_noise[:, :, 0] = np.linspace(-noise_scale, noise_scale, w)
-            grad_noise[:, :, 1] = np.linspace(-noise_scale, noise_scale, h).reshape(-1, 1)
-
-            # Combine patterns
-            combined_noise = noise1 * 0.5 + freq_noise * 0.3 + grad_noise * 0.2
-
-            # Scale by epsilon
-            combined_noise = combined_noise * (epsilon / noise_scale)
-
-            # Apply noise to face region
-            face_region = face_region + combined_noise
-            face_region = np.clip(face_region, 0, 1)
-
-            # Check if face detection fails now
             test_img = img_float.copy()
-            test_img[y1:y2, x1:x2] = face_region
+            test_img[y1:y2, x1:x2] = noised_face
             test_array = (test_img * 255).astype(np.uint8)
-
             test_faces = detect_faces(test_array)
 
             if len(test_faces) == 0:
-                print(f"✅ Face detection broken after {iteration + 1} iterations!")
+                actual_eps = np.abs(cumulative_noise).max()
+                print(f"  ✅ Undetectable after {iteration+1} iters (noise={actual_eps:.3f})")
+                face_region = noised_face
                 break
-            else:
-                # Increase noise for next iteration
-                noise_scale = min(noise_scale * 1.2, epsilon * 2)  # Cap at 2x epsilon
 
-        # Apply the final noised face region
-        img_float[y1:y2, x1:x2] = face_region
+            noise_scale *= 1.2
+        else:
+            face_region = noised_face
+            conf = test_faces[0].det_score if test_faces else 0
+            print(f"  ⚠️ Max iters, conf={conf:.3f}")
+
+        result_float[y1:y2, x1:x2] = face_region
+
+    img_float = result_float
 
     # Convert back to uint8
     cloaked_array = (img_float * 255).astype(np.uint8)
@@ -254,7 +239,6 @@ def face_targeted_attack(
         "faces_detected_before": len(faces),
         "faces_detected_after": len(final_faces),
         "protection_successful": protection_successful,
-        "iterations_used": iteration + 1 if max_iterations > 0 and len(faces) > 0 else 0,
     }
 
     if protection_successful:
@@ -288,11 +272,11 @@ def cloak_image(
         Tuple of (cloaked_image, metadata)
     """
     epsilon_map = {
-        "light": 0.02,
-        "medium": 0.04,
-        "strong": 0.06,
+        "light": 0.01,
+        "medium": 0.02,
+        "strong": 0.03,
     }
-    epsilon = epsilon_map.get(strength, 0.04)
+    epsilon = epsilon_map.get(strength, 0.02)
 
     if method == "fgsm":
         return fgsm_attack(image, epsilon=epsilon)
