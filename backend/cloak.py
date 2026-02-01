@@ -1,12 +1,13 @@
 """
-Advanced Face Cloaking Module
+Advanced Face Cloaking Module - PhotoGuard-Style Defense
 
-Two attack modes:
-1. FGSM on ResNet - General adversarial noise
-2. Face-targeted attack - Specifically breaks face detection (more effective!)
+Attack modes:
+1. PGD with CLIP - Targeted latent attack (best transferability to diffusion models)
+2. PGD with ArcFace - Targeted attack for face-swap models
+3. Face-targeted attack - Breaks face detection pipeline
 
-The face-targeted attack adds noise that makes InsightFace unable to detect
-the face, which breaks the entire deepfake pipeline.
+Uses Projected Gradient Descent (PGD) with targeted latent loss to push
+image embeddings toward a "null" target, disrupting deepfake generation.
 """
 
 import torch
@@ -19,6 +20,14 @@ from typing import Tuple, Optional
 import warnings
 
 warnings.filterwarnings("ignore")
+
+# Try to import CLIP from transformers
+try:
+    from transformers import CLIPModel, CLIPProcessor
+    CLIP_AVAILABLE = True
+except ImportError:
+    CLIP_AVAILABLE = False
+    print("⚠️ transformers not installed - CLIP attacks unavailable, using ResNet fallback")
 
 # Device setup - use MPS on Mac, CUDA on Linux, CPU as fallback
 def get_device():
@@ -36,7 +45,7 @@ _resnet_model = None
 _face_app = None
 
 def get_resnet_model():
-    """Lazy load the pretrained ResNet model."""
+    """Lazy load the pretrained ResNet model (fallback if CLIP unavailable)."""
     global _resnet_model
     if _resnet_model is None:
         print("📥 Loading ResNet50 model...")
@@ -44,6 +53,50 @@ def get_resnet_model():
         _resnet_model.eval()
         _resnet_model.to(DEVICE)
     return _resnet_model
+
+
+# CLIP model for better transferability to diffusion-based deepfakes
+_clip_model = None
+_clip_processor = None
+
+
+def get_clip_model():
+    """
+    Load CLIP as surrogate model.
+    CLIP embeddings transfer well to diffusion models (Stable Diffusion, etc.)
+    """
+    global _clip_model, _clip_processor
+    if not CLIP_AVAILABLE:
+        return None, None
+    if _clip_model is None:
+        print("📥 Loading CLIP model (ViT-B/32)...")
+        _clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+        _clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        _clip_model.eval()
+        _clip_model.to(DEVICE)
+        print("✅ CLIP loaded")
+    return _clip_model, _clip_processor
+
+
+def get_clip_image_features(model, pixel_values):
+    """Extract CLIP image embeddings (512-dim vector)."""
+    return model.get_image_features(pixel_values=pixel_values)
+
+
+def get_resnet_features(model, x):
+    """
+    Extract intermediate features from ResNet (before classification head).
+    Returns 2048-dim feature vector from layer4.
+    """
+    x = model.conv1(x)
+    x = model.bn1(x)
+    x = model.relu(x)
+    x = model.maxpool(x)
+    x = model.layer1(x)
+    x = model.layer2(x)
+    x = model.layer3(x)
+    x = model.layer4(x)
+    return model.avgpool(x).flatten(1)
 
 
 def get_face_app():
@@ -102,46 +155,163 @@ def tensor_to_pil(tensor: torch.Tensor) -> Image.Image:
     return Image.fromarray(np_image)
 
 
+def pgd_attack(
+    image: Image.Image,
+    epsilon: float = 0.03,
+    alpha: float = None,
+    num_steps: int = 40,
+    target_size: int = 512,
+    use_clip: bool = True
+) -> Tuple[Image.Image, dict]:
+    """
+    Projected Gradient Descent (PGD) with targeted latent attack.
+
+    This is a PhotoGuard-style attack that pushes image embeddings toward
+    a "null" target (gray image), disrupting deepfake generation.
+
+    Args:
+        image: Input PIL Image
+        epsilon: Maximum L∞ perturbation (0.03 = ~8/255)
+        alpha: Step size per iteration (default: 2.5*epsilon/num_steps)
+        num_steps: Number of PGD iterations
+        target_size: Image size for processing
+        use_clip: Use CLIP encoder (better transfer) or ResNet (fallback)
+
+    Returns:
+        Tuple of (cloaked_image, metadata)
+    """
+    if alpha is None:
+        alpha = epsilon / num_steps * 2.5  # Standard PGD step size
+
+    original_size = image.size
+    transform = get_transforms(target_size)
+
+    # Try CLIP first (better transferability), fallback to ResNet
+    clip_model, clip_processor = get_clip_model() if use_clip else (None, None)
+    use_clip_actual = clip_model is not None
+
+    if use_clip_actual:
+        # CLIP-based attack
+        # Preprocess for CLIP
+        clip_inputs = clip_processor(images=image, return_tensors="pt")
+        img_tensor = clip_inputs["pixel_values"].to(DEVICE)
+        original_tensor = img_tensor.clone().detach()
+
+        # Create target: gray image embeddings (represents "null" face)
+        gray_img = Image.new("RGB", image.size, color=(128, 128, 128))
+        gray_inputs = clip_processor(images=gray_img, return_tensors="pt")
+        gray_tensor = gray_inputs["pixel_values"].to(DEVICE)
+
+        with torch.no_grad():
+            target_features = get_clip_image_features(clip_model, gray_tensor)
+
+        # Initialize perturbation with small random noise (helps escape local minima)
+        delta = torch.zeros_like(img_tensor, requires_grad=True)
+        delta.data.uniform_(-epsilon * 0.1, epsilon * 0.1)
+
+        for step in range(num_steps):
+            delta.requires_grad_(True)
+            perturbed = torch.clamp(original_tensor + delta, 0, 1)
+
+            # Get current embeddings
+            current_features = get_clip_image_features(clip_model, perturbed)
+
+            # Targeted attack: minimize distance to gray (null) target
+            loss = nn.MSELoss()(current_features, target_features)
+
+            loss.backward()
+
+            # Gradient descent step (minimize loss)
+            grad = delta.grad.detach()
+            delta.data = delta.data - alpha * grad.sign()
+
+            # Project back to L∞ ball (proper constraint enforcement)
+            delta.data = torch.clamp(delta.data, -epsilon, epsilon)
+            delta.data = torch.clamp(original_tensor + delta.data, 0, 1) - original_tensor
+
+            if delta.grad is not None:
+                delta.grad.zero_()
+
+        cloaked_tensor = torch.clamp(original_tensor + delta.detach(), 0, 1)
+
+        # Convert CLIP tensor back to PIL (CLIP uses different normalization)
+        cloaked_np = cloaked_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
+        cloaked_np = (cloaked_np * 255).astype(np.uint8)
+        cloaked_image = Image.fromarray(cloaked_np)
+        cloaked_image = cloaked_image.resize(original_size, Image.Resampling.LANCZOS)
+
+        method_name = "pgd_clip_targeted"
+
+    else:
+        # ResNet fallback
+        model = get_resnet_model()
+        img_tensor = transform(image).unsqueeze(0).to(DEVICE)
+        original_tensor = img_tensor.clone().detach()
+
+        # Target: gray image features
+        gray_tensor = torch.ones_like(img_tensor) * 0.5
+        with torch.no_grad():
+            target_features = get_resnet_features(model, gray_tensor)
+
+        # Initialize perturbation
+        delta = torch.zeros_like(img_tensor, requires_grad=True)
+        delta.data.uniform_(-epsilon * 0.1, epsilon * 0.1)
+
+        for step in range(num_steps):
+            delta.requires_grad_(True)
+            perturbed = torch.clamp(original_tensor + delta, 0, 1)
+
+            current_features = get_resnet_features(model, perturbed)
+            loss = nn.MSELoss()(current_features, target_features)
+
+            loss.backward()
+
+            grad = delta.grad.detach()
+            delta.data = delta.data - alpha * grad.sign()
+
+            # L∞ projection
+            delta.data = torch.clamp(delta.data, -epsilon, epsilon)
+            delta.data = torch.clamp(original_tensor + delta.data, 0, 1) - original_tensor
+
+            if delta.grad is not None:
+                delta.grad.zero_()
+
+        cloaked_tensor = torch.clamp(original_tensor + delta.detach(), 0, 1)
+        cloaked_image = tensor_to_pil(cloaked_tensor)
+        cloaked_image = cloaked_image.resize(original_size, Image.Resampling.LANCZOS)
+
+        method_name = "pgd_resnet_targeted"
+
+    # Calculate actual perturbation stats
+    final_perturbation = delta.detach()
+
+    metadata = {
+        "method": method_name,
+        "epsilon": epsilon,
+        "alpha": alpha,
+        "num_steps": num_steps,
+        "device": str(DEVICE),
+        "final_loss": float(loss.item()),
+        "perturbation_linf": float(final_perturbation.abs().max().item()),
+        "perturbation_mean": float(final_perturbation.abs().mean().item()),
+        "clip_used": use_clip_actual,
+    }
+
+    return cloaked_image, metadata
+
+
+# Keep FGSM as fast fallback option
 def fgsm_attack(
     image: Image.Image,
     epsilon: float = 0.03,
     target_size: int = 512
 ) -> Tuple[Image.Image, dict]:
     """
-    Apply FGSM adversarial attack using ResNet.
-    This is the basic attack - works on general image classifiers.
+    Fast single-step attack (FGSM) - use pgd_attack for better protection.
+    Kept for backwards compatibility and quick testing.
     """
-    model = get_resnet_model()
-    transform = get_transforms(target_size)
-    original_size = image.size
-
-    img_tensor = transform(image).unsqueeze(0).to(DEVICE)
-    img_tensor.requires_grad = True
-
-    output = model(img_tensor)
-    pred_class = output.argmax(dim=1)
-    loss = nn.CrossEntropyLoss()(output, pred_class)
-
-    model.zero_grad()
-    loss.backward()
-
-    grad_sign = img_tensor.grad.sign()
-    perturbation = epsilon * grad_sign
-
-    cloaked_tensor = img_tensor + perturbation
-    cloaked_tensor = torch.clamp(cloaked_tensor, 0, 1)
-
-    cloaked_image = tensor_to_pil(cloaked_tensor)
-    cloaked_image = cloaked_image.resize(original_size, Image.Resampling.LANCZOS)
-
-    metadata = {
-        "method": "fgsm_resnet",
-        "epsilon": epsilon,
-        "device": str(DEVICE),
-        "perturbation_norm": float(perturbation.abs().mean().item()),
-    }
-
-    return cloaked_image, metadata
+    # Use PGD with 1 step = FGSM equivalent
+    return pgd_attack(image, epsilon=epsilon, num_steps=1, alpha=epsilon, target_size=target_size)
 
 
 def face_targeted_attack(
@@ -169,9 +339,9 @@ def face_targeted_attack(
     faces = detect_faces(img_array)
 
     if len(faces) == 0:
-        # No face detected - fall back to FGSM
-        print("⚠️ No face detected, using FGSM fallback")
-        return fgsm_attack(image, epsilon=epsilon)
+        # No face detected - fall back to PGD attack
+        print("⚠️ No face detected, using PGD attack fallback")
+        return pgd_attack(image, epsilon=epsilon)
 
     print(f"🎯 Found {len(faces)} face(s), applying targeted attack...")
 
@@ -190,23 +360,27 @@ def face_targeted_attack(
         x2 = min(img_array.shape[1], x2 + pad)
         y2 = min(img_array.shape[0], y2 + pad)
 
-        # Extract face region
-        face_region = img_float[y1:y2, x1:x2].copy()
+        # Extract face region - store ORIGINAL for L∞ projection
+        original_face = img_float[y1:y2, x1:x2].copy()
+        face_region = original_face.copy()
+        h, w = face_region.shape[:2]
+
+        # Track cumulative perturbation for proper L∞ enforcement
+        cumulative_perturbation = np.zeros_like(face_region)
 
         # Generate adversarial noise for face region
         # Use multiple noise patterns for robustness
         for iteration in range(max_iterations):
             # Create structured noise patterns
-            h, w = face_region.shape[:2]
 
             # Pattern 1: Random noise
             noise1 = np.random.randn(h, w, 3).astype(np.float32) * noise_scale
 
             # Pattern 2: High-frequency patterns (effective against neural nets)
-            freq_noise = np.zeros((h, w, 3), dtype=np.float32)
-            for i in range(h):
-                for j in range(w):
-                    freq_noise[i, j] = noise_scale * 0.5 * ((-1) ** (i + j))
+            # Vectorized version (faster than nested loops)
+            i_grid, j_grid = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
+            freq_noise = (noise_scale * 0.5 * ((-1.0) ** (i_grid + j_grid)))[:, :, np.newaxis]
+            freq_noise = np.broadcast_to(freq_noise, (h, w, 3)).astype(np.float32)
 
             # Pattern 3: Gradient-like noise
             grad_noise = np.zeros((h, w, 3), dtype=np.float32)
@@ -219,8 +393,16 @@ def face_targeted_attack(
             # Scale by epsilon
             combined_noise = combined_noise * (epsilon / noise_scale)
 
-            # Apply noise to face region
-            face_region = face_region + combined_noise
+            # Add to cumulative perturbation
+            cumulative_perturbation = cumulative_perturbation + combined_noise
+
+            # PROPER L∞ PROJECTION: clamp perturbation to [-epsilon, epsilon]
+            cumulative_perturbation = np.clip(cumulative_perturbation, -epsilon, epsilon)
+
+            # Apply perturbation to original (not to already-perturbed region)
+            face_region = original_face + cumulative_perturbation
+
+            # Clamp to valid image range [0, 1]
             face_region = np.clip(face_region, 0, 1)
 
             # Check if face detection fails now
@@ -260,10 +442,11 @@ def face_targeted_attack(
     if protection_successful:
         print("🛡️ Face successfully cloaked - undetectable!")
     else:
-        print(f"⚠️ Face still detectable ({len(final_faces)} faces) - applying extra noise...")
-        # Apply additional FGSM on top for extra protection
-        cloaked_image, extra_meta = fgsm_attack(cloaked_image, epsilon=epsilon * 0.5)
-        metadata["extra_fgsm_applied"] = True
+        print(f"⚠️ Face still detectable ({len(final_faces)} faces) - applying PGD reinforcement...")
+        # Apply additional PGD on top for extra protection
+        cloaked_image, extra_meta = pgd_attack(cloaked_image, epsilon=epsilon * 0.5, num_steps=20)
+        metadata["extra_pgd_applied"] = True
+        metadata["reinforcement_loss"] = extra_meta.get("final_loss")
 
     return cloaked_image, metadata
 
@@ -274,15 +457,16 @@ def cloak_image(
     method: str = "auto"
 ) -> Tuple[Image.Image, dict]:
     """
-    High-level cloaking function.
+    High-level cloaking function with PhotoGuard-style protection.
 
     Args:
         image: Input PIL Image
-        strength: "light", "medium", "strong"
-        method: "auto", "face", or "fgsm"
-                - auto: Use face-targeted if face detected, else FGSM
-                - face: Force face-targeted attack
-                - fgsm: Force FGSM (faster but less effective)
+        strength: "light", "medium", "strong" (controls epsilon)
+        method: Attack method to use:
+                - "auto": Use face-targeted if face detected, else PGD (recommended)
+                - "pgd": Force PGD targeted latent attack (best transferability)
+                - "face": Force face-targeted attack (breaks face detection)
+                - "fgsm": Force single-step FGSM (fast but weak, for testing)
 
     Returns:
         Tuple of (cloaked_image, metadata)
@@ -294,7 +478,10 @@ def cloak_image(
     }
     epsilon = epsilon_map.get(strength, 0.04)
 
-    if method == "fgsm":
+    if method == "pgd":
+        return pgd_attack(image, epsilon=epsilon)
+
+    elif method == "fgsm":
         return fgsm_attack(image, epsilon=epsilon)
 
     elif method == "face":
@@ -309,8 +496,8 @@ def cloak_image(
             print(f"🎯 Auto-detected {len(faces)} face(s), using face-targeted attack")
             return face_targeted_attack(image, epsilon=epsilon)
         else:
-            print("📷 No face detected, using FGSM attack")
-            return fgsm_attack(image, epsilon=epsilon)
+            print("📷 No face detected, using PGD targeted latent attack")
+            return pgd_attack(image, epsilon=epsilon)
 
 
 # Quick test
