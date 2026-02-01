@@ -7,7 +7,6 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -43,35 +42,59 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Sign up to start protecting your images</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--vintage-cream)]">
+      {/* Polaroid-style card */}
+      <div className="polaroid polaroid-lg w-full max-w-sm">
+        {/* Header area (like photo area) */}
+        <div className="bg-[var(--darkroom-bg)] p-6 text-center relative overflow-hidden">
+          {/* Subtle red glow */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[var(--darkroom-glow)] to-transparent opacity-50" />
+
+          <div className="relative z-10">
+            <h1 className="font-handwriting text-4xl text-[var(--vintage-cream)] mb-2">
+              Cloaked
+            </h1>
+            <p className="font-handwriting text-lg text-[var(--vintage-cream)]/60">
+              join the darkroom
+            </p>
+          </div>
+        </div>
+
+        {/* Form area (caption area) */}
+        <div className="pt-6 pb-2 px-2">
           <form onSubmit={handleSignUp} className="space-y-4">
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                {error}
+              <div className="p-3 bg-[var(--darkroom-red)]/10 border border-[var(--darkroom-red)]/30 rounded text-[var(--darkroom-red)] text-sm">
+                <span className="font-handwriting text-base">{error}</span>
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="name"
+                className="font-handwriting text-lg text-[var(--vintage-brown)]"
+              >
+                your name
+              </Label>
               <Input
                 id="name"
                 type="text"
-                placeholder="Your name"
+                placeholder="what should we call you?"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
                 disabled={isLoading}
+                className="auth-input"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="email"
+                className="font-handwriting text-lg text-[var(--vintage-brown)]"
+              >
+                email
+              </Label>
               <Input
                 id="email"
                 type="email"
@@ -80,39 +103,53 @@ export default function SignUpPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
+                className="auth-input"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="password"
+                className="font-handwriting text-lg text-[var(--vintage-brown)]"
+              >
+                password
+              </Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Create a password"
+                placeholder="create a secret"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
                 minLength={8}
+                className="auth-input"
               />
-              <p className="text-xs text-muted-foreground">
-                Must be at least 8 characters
+              <p className="font-handwriting text-sm text-[var(--vintage-brown)]/50">
+                at least 8 characters
               </p>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Creating account..." : "Sign Up"}
+            <Button
+              type="submit"
+              className="w-full btn-vintage font-handwriting text-lg"
+              disabled={isLoading}
+            >
+              {isLoading ? "creating account..." : "create account"}
             </Button>
 
-            <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/sign-in" className="text-primary hover:underline">
-                Sign in
+            <p className="text-center font-handwriting text-base text-[var(--vintage-brown)]/70">
+              already have an account?{" "}
+              <Link
+                href="/sign-in"
+                className="text-[var(--vintage-amber)] hover:text-[var(--vintage-brown)] underline underline-offset-2"
+              >
+                sign in
               </Link>
             </p>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

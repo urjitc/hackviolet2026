@@ -48,38 +48,54 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --background: oklch(0.98 0.008 85);
+  --foreground: oklch(0.25 0.02 60);
+  --card: oklch(0.97 0.012 85);
+  --card-foreground: oklch(0.25 0.02 60);
+  --popover: oklch(0.97 0.012 85);
+  --popover-foreground: oklch(0.25 0.02 60);
   --primary: oklch(0.59 0.26 323);
   --primary-foreground: oklch(0.98 0.02 320);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --secondary: oklch(0.92 0.02 85);
+  --secondary-foreground: oklch(0.35 0.04 60);
+  --muted: oklch(0.94 0.015 85);
+  --muted-foreground: oklch(0.45 0.03 60);
+  --accent: oklch(0.94 0.015 85);
+  --accent-foreground: oklch(0.30 0.03 60);
+  --destructive: oklch(0.55 0.18 25);
+  --border: oklch(0.88 0.02 80);
+  --input: oklch(0.92 0.015 85);
+  --ring: oklch(0.60 0.08 75);
   --chart-1: oklch(0.83 0.13 321);
   --chart-2: oklch(0.75 0.21 322);
   --chart-3: oklch(0.67 0.26 322);
   --chart-4: oklch(0.59 0.26 323);
   --chart-5: oklch(0.52 0.23 324);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar: oklch(0.96 0.01 85);
+  --sidebar-foreground: oklch(0.25 0.02 60);
   --sidebar-primary: oklch(0.59 0.26 323);
   --sidebar-primary-foreground: oklch(0.98 0.02 320);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(0.94 0.015 85);
+  --sidebar-accent-foreground: oklch(0.30 0.03 60);
+  --sidebar-border: oklch(0.88 0.02 80);
+  --sidebar-ring: oklch(0.60 0.08 75);
+
+  /* Vintage palette */
+  --vintage-cream: oklch(0.97 0.015 90);
+  --vintage-paper: oklch(0.92 0.025 85);
+  --vintage-brown: oklch(0.45 0.08 60);
+  --vintage-amber: oklch(0.75 0.12 75);
+  --vintage-ink: oklch(0.35 0.06 50);
+
+  /* Darkroom palette */
+  --darkroom-bg: oklch(0.12 0.015 30);
+  --darkroom-red: oklch(0.35 0.15 25);
+  --darkroom-glow: oklch(0.40 0.18 25 / 0.15);
+  --darkroom-accent: oklch(0.50 0.20 25);
+
+  /* Stamp color */
+  --stamp-red: oklch(0.45 0.15 25);
 }
 
 .dark {
@@ -130,12 +146,46 @@
   font-family: var(--font-handwriting), cursive;
 }
 
-/* Polaroid frame styling */
+/* Film grain overlay */
+.film-grain {
+  position: relative;
+}
+
+.film-grain::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.035;
+  pointer-events: none;
+  z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* Polaroid frame styling - vintage paper look */
 .polaroid {
-  background: white;
+  background: linear-gradient(
+    135deg,
+    var(--vintage-cream) 0%,
+    var(--vintage-paper) 50%,
+    oklch(0.90 0.03 80) 100%
+  );
   padding: 0.75rem 0.75rem 2.5rem 0.75rem;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  box-shadow:
+    0 4px 8px -2px oklch(0.3 0.05 60 / 0.15),
+    0 8px 16px -4px oklch(0.25 0.04 60 / 0.1),
+    inset 0 1px 0 oklch(1 0 0 / 0.5);
   border-radius: 2px;
+  position: relative;
+}
+
+/* Subtle worn edge effect */
+.polaroid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  box-shadow: inset 0 0 20px oklch(0.5 0.05 60 / 0.08);
+  pointer-events: none;
 }
 
 .polaroid-lg {
@@ -144,29 +194,67 @@
 
 .polaroid-tilt {
   transform: rotate(-3deg);
-  transition: transform 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .polaroid-tilt:hover {
-  transform: rotate(0deg) scale(1.02);
+  transform: rotate(0deg) scale(1.02) translateY(-4px);
+  box-shadow:
+    0 12px 24px -4px oklch(0.3 0.05 60 / 0.2),
+    0 16px 32px -8px oklch(0.25 0.04 60 / 0.15),
+    inset 0 1px 0 oklch(1 0 0 / 0.5);
+}
+
+/* Photo area vignette effect */
+.photo-vignette {
+  position: relative;
+}
+
+.photo-vignette::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 40px oklch(0.2 0.02 60 / 0.15);
+  pointer-events: none;
 }
 
 /* Clothesline styling */
 .clothesline {
   position: relative;
-  padding-top: 28px;
+  padding-top: 8px;
 }
 
 .clothesline::before {
   content: '';
   position: absolute;
-  top: 10px;
+  top: 12px;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(to bottom, #555 0%, #333 50%, #555 100%);
-  border-radius: 2px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  height: 7px;
+  /* Rope with brown shade variations */
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #7B6245 0px,
+      #5C4A38 4px,
+      #8B7255 8px,
+      #6B5A48 12px,
+      #7B6245 16px
+    ),
+    linear-gradient(
+      to bottom,
+      #8B7255 0%,
+      #5C4A38 35%,
+      #4A3C2E 50%,
+      #5C4A38 65%,
+      #8B7255 100%
+    );
+  background-blend-mode: multiply;
+  border-radius: 3.5px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.2);
 }
 
 /* Hanging polaroid animation */
@@ -185,3 +273,204 @@
 .hanging-polaroid:nth-child(3n) { animation-delay: -2s; }
 .hanging-polaroid:nth-child(4n) { animation-delay: -0.5s; }
 .hanging-polaroid:nth-child(5n) { animation-delay: -1.5s; }
+
+/* ========================================
+   DARKROOM GALLERY STYLES
+   ======================================== */
+
+.darkroom {
+  background: var(--darkroom-bg);
+  position: relative;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+/* Red ambient glow from edges */
+.darkroom::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 30%,
+    var(--darkroom-glow) 70%,
+    oklch(0.35 0.18 25 / 0.25) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Darkroom clothesline - thicker, more visible */
+.darkroom .clothesline::before {
+  height: 4px;
+  background: linear-gradient(
+    to bottom,
+    oklch(0.35 0.02 60) 0%,
+    oklch(0.25 0.02 60) 50%,
+    oklch(0.35 0.02 60) 100%
+  );
+  box-shadow:
+    0 2px 4px oklch(0 0 0 / 0.4),
+    0 4px 8px oklch(0 0 0 / 0.2);
+}
+
+/* Darkroom polaroid card styling */
+.darkroom-polaroid {
+  background: linear-gradient(
+    135deg,
+    oklch(0.94 0.02 85) 0%,
+    oklch(0.90 0.025 82) 100%
+  );
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.darkroom-polaroid:hover {
+  transform: translateY(-8px) rotate(0deg) !important;
+  box-shadow:
+    0 0 30px var(--darkroom-glow),
+    0 20px 40px -10px oklch(0 0 0 / 0.4);
+  filter: brightness(1.05) saturate(1.1);
+}
+
+/* Red glow effect on hover */
+.darkroom-polaroid::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  background: radial-gradient(
+    ellipse at center,
+    var(--darkroom-glow) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.darkroom-polaroid:hover::after {
+  opacity: 1;
+}
+
+/* ========================================
+   CLOAKED STAMP STYLES
+   ======================================== */
+
+.cloaked-stamp {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  transform: rotate(-12deg);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.cloaked-stamp.visible {
+  animation: stamp-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes stamp-appear {
+  0% {
+    opacity: 0;
+    transform: rotate(-15deg) scale(1.4);
+  }
+  50% {
+    opacity: 0.95;
+    transform: rotate(-10deg) scale(0.95);
+  }
+  100% {
+    opacity: 0.9;
+    transform: rotate(-12deg) scale(1);
+  }
+}
+
+/* Gallery stamp (smaller) */
+.cloaked-stamp-sm {
+  bottom: 0.5rem;
+  right: 0.25rem;
+  transform: rotate(-12deg) scale(0.75);
+}
+
+.cloaked-stamp-sm.visible {
+  animation: stamp-appear-sm 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes stamp-appear-sm {
+  0% {
+    opacity: 0;
+    transform: rotate(-15deg) scale(0.95);
+  }
+  50% {
+    opacity: 0.9;
+    transform: rotate(-10deg) scale(0.7);
+  }
+  100% {
+    opacity: 0.85;
+    transform: rotate(-12deg) scale(0.75);
+  }
+}
+
+/* ========================================
+   VINTAGE BUTTON STYLES
+   ======================================== */
+
+.btn-vintage {
+  background: linear-gradient(
+    to bottom,
+    var(--vintage-amber) 0%,
+    oklch(0.68 0.14 75) 100%
+  );
+  color: var(--vintage-brown);
+  border: 2px solid oklch(0.60 0.10 70);
+  box-shadow:
+    0 2px 4px oklch(0.4 0.08 70 / 0.2),
+    inset 0 1px 0 oklch(1 0 0 / 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-vintage:hover {
+  background: linear-gradient(
+    to bottom,
+    oklch(0.78 0.14 75) 0%,
+    var(--vintage-amber) 100%
+  );
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 8px oklch(0.4 0.08 70 / 0.3),
+    inset 0 1px 0 oklch(1 0 0 / 0.3);
+}
+
+.btn-vintage:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 1px 2px oklch(0.4 0.08 70 / 0.2),
+    inset 0 1px 2px oklch(0 0 0 / 0.1);
+}
+
+/* ========================================
+   AUTH FORM VINTAGE STYLES
+   ======================================== */
+
+.auth-card {
+  background: linear-gradient(
+    135deg,
+    var(--vintage-cream) 0%,
+    var(--vintage-paper) 100%
+  );
+  border: 1px solid oklch(0.85 0.03 80);
+  box-shadow:
+    0 8px 32px -4px oklch(0.3 0.05 60 / 0.15),
+    0 4px 16px -2px oklch(0.25 0.04 60 / 0.1);
+}
+
+.auth-input {
+  background: oklch(0.98 0.01 85);
+  border: 1px solid oklch(0.85 0.03 75);
+  transition: all 0.2s ease;
+}
+
+.auth-input:focus {
+  border-color: var(--vintage-amber);
+  box-shadow: 0 0 0 3px oklch(0.75 0.12 75 / 0.2);
+}

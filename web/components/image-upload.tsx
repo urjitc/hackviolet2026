@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { CloakedStamp } from "@/components/cloaked-stamp";
+import { useSound } from "@/components/sound-provider";
 import { cn } from "@/lib/utils";
 
 interface ImagePair {
@@ -20,6 +22,8 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imagePair, setImagePair] = useState<ImagePair | null>(null);
+  const [showStamp, setShowStamp] = useState(false);
+  const { playSound } = useSound();
 
   // Track polling state for cleanup
   const pollingRef = useRef<{ active: boolean; timeoutId: NodeJS.Timeout | null }>({
@@ -36,6 +40,19 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
       }
     };
   }, []);
+
+  // Show stamp with delay when completed and play stamp sound
+  useEffect(() => {
+    if (imagePair?.status === "completed") {
+      const timer = setTimeout(() => {
+        setShowStamp(true);
+        playSound("stamp");
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setShowStamp(false);
+    }
+  }, [imagePair?.status, playSound]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -115,6 +132,8 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
       setError(null);
       setIsUploading(true);
       setImagePair(null);
+      setShowStamp(false);
+      playSound("shutter");
 
       try {
         const formData = new FormData();
@@ -135,6 +154,7 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
         pollForCompletion(data.id);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed");
+        playSound("error");
       } finally {
         setIsUploading(false);
       }
@@ -166,15 +186,17 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
 
   const getHandwrittenCaption = () => {
     if (isUploading) return "uploading...";
-    if (imagePair?.status === "processing" || imagePair?.status === "pending") return "working some magic...";
-    if (imagePair?.status === "completed") return "all done! ✓";
-    if (imagePair?.status === "failed") return "oops, something went wrong";
-    return "drop your photo here ↑";
+    if (imagePair?.status === "processing" || imagePair?.status === "pending") return "adding protection...";
+    if (imagePair?.status === "completed") return "protected";
+    if (imagePair?.status === "failed") return "protection failed";
+    if (isDragging) return "drop to protect";
+    return "ready to protect";
   };
 
   const resetUpload = () => {
     setImagePair(null);
     setError(null);
+    setShowStamp(false);
   };
 
   return (
@@ -182,8 +204,9 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
       {/* Polaroid Frame */}
       <div
         className={cn(
-          "polaroid polaroid-lg polaroid-tilt cursor-pointer transition-all duration-300",
-          isDragging && "scale-105 shadow-xl"
+          "polaroid polaroid-lg polaroid-tilt cursor-pointer relative",
+          isDragging && "scale-105",
+          imagePair?.status === "failed" && "ring-2 ring-[var(--destructive)] ring-offset-2"
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -198,28 +221,32 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
           id="file-upload"
         />
 
-        {/* Photo Area */}
+        {/* Photo Area with vignette */}
         <label
           htmlFor="file-upload"
           className={cn(
-            "block w-64 h-64 md:w-80 md:h-80 cursor-pointer transition-all duration-200",
+            "photo-vignette block w-64 h-64 md:w-80 md:h-80 cursor-pointer transition-all duration-200 relative overflow-hidden",
             "flex items-center justify-center",
             imagePair?.originalUrl
-              ? "bg-muted"
+              ? "bg-[var(--vintage-paper)]"
               : isDragging
-                ? "bg-primary/10 border-2 border-dashed border-primary"
-                : "bg-muted/70 hover:bg-muted",
+                ? "bg-[var(--vintage-amber)]/20 border-2 border-dashed border-[var(--vintage-amber)]"
+                : "bg-[var(--muted)] hover:bg-[var(--vintage-paper)]",
             (isUploading || imagePair?.status === "processing") && "cursor-wait"
           )}
         >
           {imagePair?.protectedUrl ? (
             // Show protected image when complete
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imagePair.protectedUrl}
-              alt="Protected"
-              className="w-full h-full object-cover"
-            />
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePair.protectedUrl}
+                alt="Protected"
+                className="w-full h-full object-cover"
+              />
+              {/* CLOAKED Stamp */}
+              <CloakedStamp visible={showStamp} size="lg" />
+            </>
           ) : imagePair?.originalUrl ? (
             // Show original while processing
             <div className="relative w-full h-full">
@@ -228,33 +255,42 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
                 src={imagePair.originalUrl}
                 alt="Original"
                 className={cn(
-                  "w-full h-full object-cover",
-                  imagePair.status === "processing" && "opacity-70"
+                  "w-full h-full object-cover transition-all duration-500",
+                  (imagePair.status === "processing" || imagePair.status === "pending") && "opacity-60 blur-[1px]"
                 )}
               />
               {(imagePair.status === "processing" || imagePair.status === "pending") && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center bg-[var(--vintage-paper)]/30">
+                  <div className="w-12 h-12 border-4 border-[var(--vintage-brown)] border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
             </div>
           ) : (
-            // Empty state
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
-              <svg
-                className="w-16 h-16 opacity-40"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <span className="text-sm">
+            // Empty state - vintage camera viewfinder
+            <div className="flex flex-col items-center gap-4 text-[var(--vintage-brown)]">
+              {/* Viewfinder corners */}
+              <div className="relative w-24 h-24">
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[var(--vintage-brown)]/50" />
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[var(--vintage-brown)]/50" />
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[var(--vintage-brown)]/50" />
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[var(--vintage-brown)]/50" />
+                {/* Camera icon */}
+                <svg
+                  className="absolute inset-0 m-auto w-10 h-10 opacity-50"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                  />
+                  <circle cx="12" cy="13" r="3" strokeWidth={1.5} />
+                </svg>
+              </div>
+              <span className="text-sm opacity-70">
                 {isUploading ? "Uploading..." : "Click or drag"}
               </span>
             </div>
@@ -263,30 +299,30 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
 
         {/* Handwritten Caption Area */}
         <div className="mt-3 text-center">
-          <p className="font-handwriting text-xl md:text-2xl text-foreground/80">
+          <p className="font-handwriting text-xl md:text-2xl text-[var(--vintage-brown)]">
             {getHandwrittenCaption()}
           </p>
         </div>
       </div>
 
-      {/* Error Message */}
+      {/* Error Message - Vintage styled */}
       {error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm max-w-sm text-center">
-          {error}
+        <div className="mt-4 p-3 bg-[var(--darkroom-red)]/10 border border-[var(--darkroom-red)]/30 rounded-lg text-[var(--darkroom-red)] text-sm max-w-sm text-center">
+          <span className="font-handwriting text-lg">{error}</span>
         </div>
       )}
 
       {/* Action Buttons */}
       {imagePair?.status === "completed" && imagePair.protectedUrl && (
         <div className="mt-6 flex gap-3">
-          <Button asChild>
+          <Button asChild className="btn-vintage">
             <a
               href={imagePair.protectedUrl}
-              download="protected-image"
+              download="cloaked-image"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Download Protected
+              Download Cloaked
             </a>
           </Button>
           <Button variant="outline" onClick={resetUpload}>
@@ -305,7 +341,7 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
 
       {/* File type hint */}
       {!imagePair && !error && (
-        <p className="mt-4 text-xs text-muted-foreground">
+        <p className="mt-4 text-xs text-[var(--vintage-brown)]/60 font-handwriting text-lg">
           PNG, JPEG, or WEBP up to 10MB
         </p>
       )}

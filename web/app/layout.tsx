@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Figtree, Caveat } from "next/font/google";
+import { SoundProvider } from "@/components/sound-provider";
 import "./globals.css";
 
 const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
@@ -33,9 +34,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${figtree.variable} ${caveat.variable}`}>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased film-grain`}
       >
-        {children}
+        <SoundProvider>
+          {children}
+        </SoundProvider>
       </body>
     </html>
   );
