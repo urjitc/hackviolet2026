@@ -4,31 +4,46 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Maximize2, Settings, Aperture, Circle } from "lucide-react";
 
-export function Hero() {
+interface HeroProps {
+    onGetStarted?: () => void;
+}
+
+export function Hero({ onGetStarted }: HeroProps) {
     const [dialRotation, setDialRotation] = useState(0);
     const [printed, setPrinted] = useState(false);
 
-    React.useEffect(() => {
-        const timer = setTimeout(() => {
-            setPrinted(true);
-        }, 3500); // Trigger image swap after print starts (2.5s reveal + 1s print start)
-        return () => clearTimeout(timer);
-    }, []);
+    const handleGetStarted = () => {
+        setPrinted(true);
+        // Call the parent callback after a delay to allow animation to start/finish
+        // or immediately, depending on desired effect. 
+        // The user said "it should do the poloraid animation and it should scrol ldown"
+        // Let's invoke the callback immediately or with a slight delay 
+        // effectively letting the parent handle the scroll
+        if (onGetStarted) {
+            // giving it a small moment for the render cycle
+            setTimeout(() => {
+                onGetStarted();
+            }, 200);
+        }
+    };
 
     const rotateDial = () => {
         setDialRotation((prev) => prev + 45);
     };
 
     return (
-        <section className="relative w-full h-screen overflow-hidden bg-zinc-50 flex items-center justify-center py-16 md:py-20 lg:py-32 px-4 md:px-8 lg:px-16">
+        <section className="relative w-full h-screen bg-zinc-50 flex items-center justify-center py-16 md:py-20 lg:py-32 px-4 md:px-8 lg:px-16 z-20">
 
-            {/* Background - Blurred Nature Image */}
-            <div
-                className="absolute inset-0 bg-cover bg-center blur-xl scale-110 opacity-40 pointer-events-none"
-                style={{
-                    backgroundImage: "url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop')"
-                }}
-            />
+            {/* Background Container - clipped */}
+            <div className="absolute inset-0 overflow-hidden">
+                {/* Background - Blurred Nature Image */}
+                <div
+                    className="absolute inset-0 bg-cover bg-center blur-xl scale-110 opacity-40 pointer-events-none"
+                    style={{
+                        backgroundImage: "url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop')"
+                    }}
+                />
+            </div>
 
 
 
@@ -46,7 +61,10 @@ export function Hero() {
                     <div className="w-12 h-8 bg-gradient-to-b from-[#E0DCD0] to-[#C8C4B8] rounded-t-lg border-t-2 border-l-2 border-r-2 border-white/50 border-b-0 shadow-[0_8px_16px_rgba(0,0,0,0.3)] transform translate-y-2 ml-auto" />
                 </div>
                 {/* --- Polaroid Print Out --- */}
-                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#eee] p-4 shadow-xl transform rotate-0 z-50 animate-print-polaroid flex flex-col pointer-events-none opacity-0">
+                <div
+                    className={`absolute -bottom-[10rem] left-1/2 -translate-x-1/2 w-96 h-96 bg-[#eee] p-4 shadow-xl transform rotate-0 z-[100] flex flex-col pointer-events-none ${printed ? 'animate-print-polaroid' : 'opacity-0'}`}
+                    style={{ animationDelay: printed ? '0s' : undefined }}
+                >
                     <div className="flex-1 bg-black relative overflow-hidden">
                         <div
                             className="absolute inset-0 bg-cover bg-center opacity-90 grayscale-[0.2]"
@@ -140,9 +158,10 @@ export function Hero() {
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95, y: 2 }}
+                                    onClick={handleGetStarted}
                                     className="relative group px-8 py-4 bg-gradient-to-b from-gray-100 to-gray-300 rounded-full shadow-[0_4px_0_rgb(156,163,175),0_10px_10px_rgba(0,0,0,0.2)] active:shadow-none active:translate-y-1 transition-all flex items-center gap-2 border border-white/50 whitespace-nowrap"
                                 >
-                                    <div className="w-4 h-4 rounded-full bg-red-500 shadow-inner" />
+                                    <div className="w-4 h-4 rounded-full bg-red-500 shadow-inner animate-pulse-red" />
                                     <span className="text-gray-700 font-bold text-sm tracking-wide group-hover:text-gray-900">GET STARTED</span>
                                 </motion.button>
                             </div>
