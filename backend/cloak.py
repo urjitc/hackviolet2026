@@ -144,52 +144,7 @@ def fgsm_attack(
     return cloaked_image, metadata
 
 
-def create_blend_mask(h: int, w: int, feather: int = 20) -> np.ndarray:
-    """
-    Create a smooth blending mask with feathered edges.
-    1.0 in center, fading to 0.0 at edges.
-    """
-    mask = np.ones((h, w), dtype=np.float32)
 
-    # Create feathered edges
-    for i in range(feather):
-        alpha = i / feather
-        # Top edge
-        if i < h:
-            mask[i, :] = min(mask[i, 0], alpha)
-        # Bottom edge
-        if h - 1 - i >= 0:
-            mask[h - 1 - i, :] = np.minimum(mask[h - 1 - i, :], alpha)
-        # Left edge
-        if i < w:
-            mask[:, i] = np.minimum(mask[:, i], alpha)
-        # Right edge
-        if w - 1 - i >= 0:
-            mask[:, w - 1 - i] = np.minimum(mask[:, w - 1 - i], alpha)
-
-    # Expand to 3 channels
-    return np.stack([mask, mask, mask], axis=-1)
-
-
-def create_landmark_mask(h: int, w: int, landmarks: np.ndarray, bbox: np.ndarray, radius: int = 30) -> np.ndarray:
-    """Create a mask that's strongest around facial landmarks (eyes, nose, mouth)."""
-    mask = np.zeros((h, w), dtype=np.float32)
-    x1, y1 = bbox[0], bbox[1]
-
-    # landmarks are in absolute coords, convert to relative to bbox
-    for lm in landmarks:
-        lx, ly = int(lm[0] - x1), int(lm[1] - y1)
-        if 0 <= lx < w and 0 <= ly < h:
-            # Create gaussian-like weight around each landmark
-            for i in range(max(0, ly - radius), min(h, ly + radius)):
-                for j in range(max(0, lx - radius), min(w, lx + radius)):
-                    dist = np.sqrt((i - ly) ** 2 + (j - lx) ** 2)
-                    if dist < radius:
-                        mask[i, j] = max(mask[i, j], 1.0 - (dist / radius))
-
-    # Ensure minimum coverage across face
-    mask = np.maximum(mask, 0.2)
-    return np.stack([mask, mask, mask], axis=-1)
 
 
 def face_targeted_attack(

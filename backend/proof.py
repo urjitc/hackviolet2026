@@ -20,6 +20,7 @@ try:
 except ImportError:
     print("⚠️ cloak.py not available or InsightFace missing - using mock proof engine")
     def detect_faces(image): return []
+    def get_face_app(): return None
 
 def init_face_analyzer():
     """Initialize the face analysis model via cloak.py."""
