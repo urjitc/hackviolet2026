@@ -129,7 +129,7 @@ export function Hero({ onGetStarted }: HeroProps) {
                                         <div className="absolute inset-0 flex flex-col justify-center p-12 md:p-24 items-start text-left z-10">
                                             {/* Cloaked Logo - Top Left of Screen using absolute positioning relative to screen container to avoid layout shifts */}
                                             <div className="absolute top-8 left-8 flex items-center gap-1">
-                                                <img src="/logo.png" alt="Cloaked Logo" className="w-13 h-13 object-contain" />
+                                                <img src="/logo.png" alt="Cloaked Logo" className="w-10 h-10 object-contain" />
                                                 <span className="text-lg font-bold tracking-tight text-white drop-shadow-md">Cloaked</span>
                                             </div>
                                             <motion.div
