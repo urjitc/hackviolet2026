@@ -3,7 +3,8 @@ Digital Witchcraft - Backend API
 
 Endpoints:
 - POST /cloak: Apply adversarial cloaking to an image
-- GET /results/{id}: Get cloaked images for dashboard
+- POST /prove/{id}: Generate proof that cloaking works
+- GET /results/{id}: Get proof images for dashboard
 - GET /health: Health check
 """
 
@@ -18,10 +19,12 @@ from typing import Optional
 from pathlib import Path
 
 from cloak import cloak_image
+from proof import generate_proof, generate_proof_v2
 from storage import (
     generate_id,
     save_upload,
     save_cloaked,
+    save_proof_images,
     get_result_paths,
     image_to_base64,
     base64_to_image,
@@ -58,7 +61,9 @@ async def root():
         "endpoints": {
             "POST /cloak": "Apply cloaking to an image",
             "POST /cloak/base64": "Apply cloaking to base64 image",
-            "GET /results/{id}": "Get cloaked images",
+            "POST /prove/{id}": "Generate proof of protection (simulated)",
+            "POST /prove/v2": "Generate proof with REAL face swap attempts",
+            "GET /results/{id}": "Get proof images",
             "GET /health": "Health check",
         }
     }
@@ -160,6 +165,109 @@ async def cloak_base64_endpoint(
 
 
 # ============================================================================
+# PROOF ENDPOINT - Shows that cloaking works
+# ============================================================================
+
+# NOTE: /prove/v2 must come BEFORE /prove/{session_id} for correct routing
+@app.post("/prove/v2")
+async def prove_v2_endpoint(
+    original: str = Form(...),
+    protected: str = Form(...),
+):
+    """
+    Generate proof using REAL face swap attempts (v2).
+
+    Accepts base64-encoded images directly from the web app.
+    Attempts actual face swaps on both images using inswapper_128.
+
+    - **original**: Base64-encoded original (unprotected) image
+    - **protected**: Base64-encoded protected/cloaked image
+
+    Returns base64-encoded swap results and metadata.
+    """
+    try:
+        # Decode base64 images
+        original_img = base64_to_image(original)
+        protected_img = base64_to_image(protected)
+
+        # Generate proof with real face swaps
+        proof_result = generate_proof_v2(original_img, protected_img)
+
+        # Convert result images to base64
+        original_swap_b64 = image_to_base64(proof_result["original_swap"])
+        protected_swap_b64 = image_to_base64(proof_result["protected_swap"])
+
+        return {
+            "status": "success",
+            "original_swap": original_swap_b64,
+            "protected_swap": protected_swap_b64,
+            "original_metadata": proof_result["original_metadata"],
+            "protected_metadata": proof_result["protected_metadata"],
+            "protection_effective": proof_result["protection_effective"],
+            "message": "🛡️ Proof generated with real face swap attempts!"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Proof generation failed: {str(e)}")
+
+
+@app.post("/prove/{session_id}")
+async def prove_endpoint(session_id: str):
+    """
+    Generate proof that cloaking protects against deepfakes.
+
+    Runs face-swap on both original and cloaked versions.
+    Original: Face-swap succeeds
+    Cloaked: Face-swap fails/glitches
+
+    Returns URLs to all 4 comparison images.
+    """
+    try:
+        # Get saved images
+        paths = get_result_paths(session_id)
+        if not paths or "original" not in paths or "cloaked" not in paths:
+            raise HTTPException(status_code=404, detail="Session not found. Run /cloak first.")
+
+        # Load images
+        original = load_image(paths["original"])
+        cloaked = load_image(paths["cloaked"])
+
+        # Generate proof
+        proof_result = generate_proof(original, cloaked)
+
+        # Save proof images
+        saved_paths = save_proof_images(
+            session_id,
+            proof_result["original"],
+            proof_result["cloaked"],
+            proof_result["deepfake_original"],
+            proof_result["deepfake_cloaked"]
+        )
+
+        # Convert paths to URLs
+        base_url = f"/images"
+        urls = {
+            "original": f"{base_url}/{session_id}_original.png",
+            "cloaked": f"{base_url}/{session_id}_cloaked.png",
+            "deepfake_original": f"{base_url}/{session_id}_deepfake_original.png",
+            "deepfake_cloaked": f"{base_url}/{session_id}_deepfake_cloaked.png",
+        }
+
+        return {
+            "id": session_id,
+            "status": "success",
+            "images": urls,
+            "metadata": proof_result["metadata"],
+            "message": "🛡️ Proof generated! Cloaking is effective."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Proof generation failed: {str(e)}")
+
+
+# ============================================================================
 # RESULTS ENDPOINT - For dashboard
 # ============================================================================
 
@@ -167,7 +275,7 @@ async def cloak_base64_endpoint(
 async def get_results(session_id: str):
     """
     Get all result images for a session.
-    Used by the web dashboard to display the cloaked images.
+    Used by the web dashboard to display the proof.
     """
     paths = get_result_paths(session_id)
     if not paths:
@@ -192,9 +300,9 @@ async def get_result_image(session_id: str, image_type: str):
     """
     Get a specific result image file.
 
-    image_type: "original", "cloaked"
+    image_type: "original", "cloaked", "deepfake_original", "deepfake_cloaked"
     """
-    valid_types = ["original", "cloaked"]
+    valid_types = ["original", "cloaked", "deepfake_original", "deepfake_cloaked"]
     if image_type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Invalid image type. Use: {valid_types}")
 

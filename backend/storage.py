@@ -61,6 +61,21 @@ def save_cloaked(image: Image.Image, session_id: str) -> str:
     return save_image(image, RESULTS_DIR, f"{session_id}_cloaked")
 
 
+def save_proof_images(
+    session_id: str,
+    original: Image.Image,
+    cloaked: Image.Image,
+    deepfake_original: Image.Image,
+    deepfake_cloaked: Image.Image
+) -> dict:
+    """Save all proof images and return paths."""
+    return {
+        "original": save_image(original, RESULTS_DIR, f"{session_id}_original"),
+        "cloaked": save_image(cloaked, RESULTS_DIR, f"{session_id}_cloaked"),
+        "deepfake_original": save_image(deepfake_original, RESULTS_DIR, f"{session_id}_deepfake_original"),
+        "deepfake_cloaked": save_image(deepfake_cloaked, RESULTS_DIR, f"{session_id}_deepfake_cloaked"),
+    }
+
 
 def get_result_paths(session_id: str) -> Optional[dict]:
     """Get paths to all result images for a session."""
@@ -75,6 +90,8 @@ def get_result_paths(session_id: str) -> Optional[dict]:
     paths = {
         "original": original_path,
         "cloaked": cloaked_path,
+        "deepfake_original": RESULTS_DIR / f"{session_id}_deepfake_original.png",
+        "deepfake_cloaked": RESULTS_DIR / f"{session_id}_deepfake_cloaked.png",
     }
 
     return {k: str(v) for k, v in paths.items() if v.exists()}
