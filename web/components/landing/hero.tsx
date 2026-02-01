@@ -12,6 +12,22 @@ export function Hero({ onGetStarted }: HeroProps) {
     const [dialRotation, setDialRotation] = useState(0);
     const [printed, setPrinted] = useState(false);
 
+    const BACKGROUND_IMAGES = [
+        "/backgrounds/1.JPG",
+        "/backgrounds/2.JPG",
+        "/backgrounds/3.JPG",
+        "/backgrounds/4.JPG",
+        "/backgrounds/5.JPG",
+        "/backgrounds/6.JPG",
+        "/backgrounds/7.JPG",
+        "/backgrounds/8.JPG",
+    ];
+
+    // Calculate current image index based on rotation (45 degrees per click)
+    // We use Math.abs to handle negative rotation if it were to happen, though here it's additive
+    // We assume 8 positions (360 / 45 = 8)
+    const currentImageIndex = Math.abs(Math.floor(dialRotation / 45)) % BACKGROUND_IMAGES.length;
+
     const handleGetStarted = () => {
         setPrinted(true);
         // Call the parent callback after a delay to allow animation to start/finish
@@ -69,7 +85,7 @@ export function Hero({ onGetStarted }: HeroProps) {
                         <div
                             className="absolute inset-0 bg-cover bg-center opacity-90 grayscale-[0.2]"
                             style={{
-                                backgroundImage: "url('https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2076&auto=format&fit=crop')"
+                                backgroundImage: `url('${BACKGROUND_IMAGES[currentImageIndex]}')`
                             }}
                         />
                     </div>
@@ -103,7 +119,7 @@ export function Hero({ onGetStarted }: HeroProps) {
                                         <div
                                             className={`absolute inset-0 bg-cover bg-center md:blur-md group-hover:blur-sm transition-all duration-700 ease-in-out scale-105`}
                                             style={{
-                                                backgroundImage: printed ? 'none' : "url('https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2076&auto=format&fit=crop')"
+                                                backgroundImage: printed ? 'none' : `url('${BACKGROUND_IMAGES[currentImageIndex]}')`
                                             }}
                                         />
                                         {/* Darker Overlay for Text Contrast */}
@@ -112,8 +128,8 @@ export function Hero({ onGetStarted }: HeroProps) {
                                         {/* Screen Content */}
                                         <div className="absolute inset-0 flex flex-col justify-center p-12 md:p-24 items-start text-left z-10">
                                             {/* Cloaked Logo - Top Left of Screen using absolute positioning relative to screen container to avoid layout shifts */}
-                                            <div className="absolute top-8 left-8 flex items-center gap-2">
-                                                <img src="/logo.png" alt="Cloaked Logo" className="w-8 h-8 object-contain" />
+                                            <div className="absolute top-8 left-8 flex items-center gap-1">
+                                                <img src="/logo.png" alt="Cloaked Logo" className="w-13 h-13 object-contain" />
                                                 <span className="text-lg font-bold tracking-tight text-white drop-shadow-md">Cloaked</span>
                                             </div>
                                             <motion.div
@@ -127,7 +143,7 @@ export function Hero({ onGetStarted }: HeroProps) {
                                             </motion.div>
 
                                             {/* HUD Elements */}
-                                            <div className="absolute top-8 right-8 flex gap-3 text-white/70">
+                                            <div className="absolute top-13 right-8 flex gap-3 text-white/70">
                                                 <div className="flex flex-col gap-0.5">
                                                     <div className="w-8 h-3 border border-white/50 rounded-sm relative">
                                                         <div className="absolute inset-0.5 w-[80%] bg-green-400/80" />
