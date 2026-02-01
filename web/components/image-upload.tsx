@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface ImagePair {
@@ -38,6 +37,7 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
     };
   }, []);
 
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -50,14 +50,12 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
 
   const pollForCompletion = useCallback(
     async (id: string) => {
-      const maxAttempts = 60; // Increased to 60 seconds
+      const maxAttempts = 60;
       let attempts = 0;
 
-      // Mark polling as active
       pollingRef.current.active = true;
 
       const poll = async () => {
-        // Check if component is still mounted
         if (!pollingRef.current.active) {
           return;
         }
@@ -86,14 +84,12 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
           if (attempts < maxAttempts && pollingRef.current.active) {
             pollingRef.current.timeoutId = setTimeout(poll, 1000);
           } else if (attempts >= maxAttempts) {
-            // Timeout reached - show error to user
             setError("Conversion is taking longer than expected. Please refresh and check your image history.");
             setImagePair((prev) => prev ? { ...prev, status: "failed" } : null);
             pollingRef.current.active = false;
           }
         } catch (err) {
           console.error("Polling error:", err);
-          // Show error to user instead of silently failing
           setError("Failed to check conversion status. Please refresh the page.");
           pollingRef.current.active = false;
         }
@@ -169,137 +165,161 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
     [uploadFile]
   );
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      processing: "bg-blue-100 text-blue-800",
-      completed: "bg-green-100 text-green-800",
-      failed: "bg-red-100 text-red-800",
-    };
+  const getHandwrittenCaption = () => {
+    if (isUploading) return "uploading...";
+    if (imagePair?.status === "processing" || imagePair?.status === "pending") return "adding protection...";
+    if (imagePair?.status === "completed") return "protected";
+    if (imagePair?.status === "failed") return "protection failed";
+    if (isDragging) return "drop to protect";
+    return "ready to protect";
+  };
 
-    return (
-      <span
-        className={cn(
-          "px-2 py-1 rounded-full text-xs font-medium",
-          styles[status] || styles.pending
-        )}
-      >
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    );
+  const resetUpload = () => {
+    setImagePair(null);
+    setError(null);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Upload Zone */}
+    <div className="flex flex-col items-center">
+      {/* Polaroid Frame */}
       <div
+        className={cn(
+          "polaroid polaroid-lg polaroid-tilt cursor-pointer relative",
+          isDragging && "scale-105",
+          imagePair?.status === "failed" && "ring-2 ring-[var(--destructive)] ring-offset-2"
+        )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={cn(
-          "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
-          isDragging
-            ? "border-primary bg-primary/5"
-            : "border-muted-foreground/25 hover:border-primary/50",
-          isUploading && "opacity-50 cursor-not-allowed"
-        )}
       >
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={handleFileSelect}
-          disabled={isUploading}
+          disabled={isUploading || imagePair?.status === "processing"}
           className="hidden"
           id="file-upload"
         />
+
+        {/* Photo Area with vignette */}
         <label
           htmlFor="file-upload"
-          className="cursor-pointer flex flex-col items-center gap-2"
+          className={cn(
+            "photo-vignette block w-64 h-64 md:w-80 md:h-80 cursor-pointer transition-all duration-200 relative overflow-hidden",
+            "flex items-center justify-center",
+            imagePair?.originalUrl
+              ? "bg-[var(--vintage-paper)]"
+              : isDragging
+                ? "bg-[var(--vintage-amber)]/20 border-2 border-dashed border-[var(--vintage-amber)]"
+                : "bg-[var(--muted)] hover:bg-[var(--vintage-paper)]",
+            (isUploading || imagePair?.status === "processing") && "cursor-wait"
+          )}
         >
-          <div className="text-4xl">📷</div>
-          <p className="text-lg font-medium">
-            {isUploading ? "Uploading..." : "Drop an image here or click to upload"}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            PNG, JPEG, or WEBP up to 10MB
-          </p>
+          {imagePair?.protectedUrl ? (
+            // Show protected image when complete
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={imagePair.protectedUrl}
+              alt="Protected"
+              className="w-full h-full object-cover"
+            />
+          ) : imagePair?.originalUrl ? (
+            // Show original while processing
+            <div className="relative w-full h-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePair.originalUrl}
+                alt="Original"
+                className={cn(
+                  "w-full h-full object-cover transition-all duration-500",
+                  (imagePair.status === "processing" || imagePair.status === "pending") && "opacity-60 blur-[1px]"
+                )}
+              />
+              {(imagePair.status === "processing" || imagePair.status === "pending") && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[var(--vintage-paper)]/30">
+                  <div className="w-12 h-12 border-4 border-[var(--vintage-brown)] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+          ) : (
+            // Empty state - vintage camera viewfinder
+            <div className="flex flex-col items-center gap-4 text-[var(--vintage-brown)]">
+              {/* Viewfinder corners */}
+              <div className="relative w-24 h-24">
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[var(--vintage-brown)]/50" />
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[var(--vintage-brown)]/50" />
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[var(--vintage-brown)]/50" />
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[var(--vintage-brown)]/50" />
+                {/* Camera icon */}
+                <svg
+                  className="absolute inset-0 m-auto w-10 h-10 opacity-50"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                  />
+                  <circle cx="12" cy="13" r="3" strokeWidth={1.5} />
+                </svg>
+              </div>
+              <span className="text-sm opacity-70">
+                {isUploading ? "Uploading..." : "Click or drag"}
+              </span>
+            </div>
+          )}
         </label>
+
+        {/* Handwritten Caption Area */}
+        <div className="mt-3 text-center">
+          <p className="font-handwriting text-xl md:text-2xl text-[var(--vintage-brown)]">
+            {getHandwrittenCaption()}
+          </p>
+        </div>
       </div>
 
-      {/* Error Message */}
+      {/* Error Message - Vintage styled */}
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
+        <div className="mt-4 p-3 bg-[var(--darkroom-red)]/10 border border-[var(--darkroom-red)]/30 rounded-lg text-[var(--darkroom-red)] text-sm max-w-sm text-center">
+          <span className="font-handwriting text-lg">{error}</span>
         </div>
       )}
 
-      {/* Results */}
-      {imagePair && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Image Protection Result</CardTitle>
-            {getStatusBadge(imagePair.status)}
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Original Image */}
-              <div className="space-y-2">
-                <h3 className="font-medium text-sm text-muted-foreground">
-                  Original
-                </h3>
-                <div className="border rounded-lg overflow-hidden bg-muted/50">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imagePair.originalUrl}
-                    alt="Original"
-                    className="w-full h-auto object-contain max-h-64"
-                  />
-                </div>
-              </div>
+      {/* Action Buttons */}
+      {imagePair?.status === "completed" && imagePair.protectedUrl && (
+        <div className="mt-6 flex gap-3">
+          <Button asChild className="btn-vintage">
+            <a
+              href={imagePair.protectedUrl}
+              download="cloaked-image"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Download Cloaked
+            </a>
+          </Button>
+          <Button variant="outline" onClick={resetUpload}>
+            Upload Another
+          </Button>
+        </div>
+      )}
 
-              {/* Protected Image */}
-              <div className="space-y-2">
-                <h3 className="font-medium text-sm text-muted-foreground">
-                  Protected
-                </h3>
-                <div className="border rounded-lg overflow-hidden bg-muted/50 min-h-32 flex items-center justify-center">
-                  {imagePair.protectedUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={imagePair.protectedUrl}
-                      alt="Protected"
-                      className="w-full h-auto object-contain max-h-64"
-                    />
-                  ) : (
-                    <div className="text-muted-foreground text-sm p-4">
-                      {imagePair.status === "processing"
-                        ? "Processing..."
-                        : imagePair.status === "failed"
-                        ? "Conversion failed"
-                        : "Waiting for conversion..."}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+      {imagePair?.status === "failed" && (
+        <div className="mt-6">
+          <Button variant="outline" onClick={resetUpload}>
+            Try Again
+          </Button>
+        </div>
+      )}
 
-            {/* Download Button */}
-            {imagePair.protectedUrl && (
-              <div className="mt-4 flex justify-end">
-                <Button asChild>
-                  <a
-                    href={imagePair.protectedUrl}
-                    download="protected-image"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Download Protected Image
-                  </a>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* File type hint */}
+      {!imagePair && !error && (
+        <p className="mt-4 text-xs text-[var(--vintage-brown)]/60 font-handwriting text-lg">
+          PNG, JPEG, or WEBP up to 10MB
+        </p>
       )}
     </div>
   );
