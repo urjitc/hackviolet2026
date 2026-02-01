@@ -9,6 +9,10 @@ torchvision>=0.15.0
 pillow>=10.0.0
 numpy>=1.24.0
 
+# CLIP for PhotoGuard-style targeted latent attacks
+# Provides better transferability to diffusion-based deepfakes
+transformers>=4.35.0
+
 # Face Analysis (optional - for proof engine)
 # Note: insightface and onnxruntime require Python 3.12 or older
 # Uncomment these if using Python <= 3.12:

@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ProtectionProofModal } from "@/components/protection-proof-modal";
 
 interface ImagePair {
   id: string;
@@ -20,6 +21,7 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imagePair, setImagePair] = useState<ImagePair | null>(null);
+  const [showProofModal, setShowProofModal] = useState(false);
 
   // Track polling state for cleanup
   const pollingRef = useRef<{ active: boolean; timeoutId: NodeJS.Timeout | null }>({
@@ -290,19 +292,42 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
 
       {/* Action Buttons */}
       {imagePair?.status === "completed" && imagePair.protectedUrl && (
-        <div className="mt-6 flex gap-3">
-          <Button asChild className="btn-vintage">
-            <a
-              href={imagePair.protectedUrl}
-              download="cloaked-image"
-              target="_blank"
-              rel="noopener noreferrer"
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <div className="flex gap-3">
+            <Button asChild className="btn-vintage">
+              <a
+                href={imagePair.protectedUrl}
+                download="cloaked-image"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Download Cloaked
+              </a>
+            </Button>
+            <Button variant="outline" onClick={resetUpload}>
+              Upload Another
+            </Button>
+          </div>
+          {/* See Protection Proof button */}
+          <Button
+            variant="outline"
+            onClick={() => setShowProofModal(true)}
+            className="gap-2 border-green-600/30 text-green-700 hover:bg-green-50 hover:border-green-600/50"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              Download Cloaked
-            </a>
-          </Button>
-          <Button variant="outline" onClick={resetUpload}>
-            Upload Another
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              />
+            </svg>
+            See Protection Proof
           </Button>
         </div>
       )}
@@ -320,6 +345,15 @@ export function ImageUpload({ onUploadComplete }: ImageUploadProps) {
         <p className="mt-4 text-xs text-[var(--vintage-brown)]/60 font-handwriting text-lg">
           PNG, JPEG, or WEBP up to 10MB
         </p>
+      )}
+
+      {/* Protection Proof Modal */}
+      {imagePair && (
+        <ProtectionProofModal
+          imageId={imagePair.id}
+          open={showProofModal}
+          onOpenChange={setShowProofModal}
+        />
       )}
     </div>
   );
