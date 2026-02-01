@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ProtectionProofModal } from "@/components/protection-proof-modal";
 
 interface ImagePair {
   id: string;
@@ -88,6 +89,7 @@ export function ImageGallery({ refreshTrigger }: ImageGalleryProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [proofImageId, setProofImageId] = useState<string | null>(null);
 
   const fetchImages = async () => {
     try {
@@ -199,6 +201,7 @@ export function ImageGallery({ refreshTrigger }: ImageGalleryProps) {
   }
 
   return (
+    <>
     <div className="rounded-xl p-6 md:p-8">
       <div className="space-y-16">
         {rows.map((row, rowIndex) => (
@@ -254,28 +257,51 @@ export function ImageGallery({ refreshTrigger }: ImageGalleryProps) {
                         {/* Hover overlay with actions */}
                         <div className="absolute inset-0 bg-[var(--vintage-brown)]/80 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3">
                           {image.protectedUrl && (
-                            <a
-                              href={image.protectedUrl}
-                              download
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2.5 bg-[var(--vintage-cream)] rounded-full hover:bg-white transition-colors shadow-lg"
-                              title="Download"
-                            >
-                              <svg
-                                className="w-4 h-4 text-[var(--vintage-brown)]"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                            <>
+                              {/* Protection Proof button */}
+                              <button
+                                onClick={() => setProofImageId(image.id)}
+                                className="p-2.5 bg-[var(--vintage-cream)] rounded-full hover:bg-green-100 transition-colors shadow-lg"
+                                title="See Protection Proof"
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                                />
-                              </svg>
-                            </a>
+                                <svg
+                                  className="w-4 h-4 text-green-600"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                                  />
+                                </svg>
+                              </button>
+                              {/* Download button */}
+                              <a
+                                href={image.protectedUrl}
+                                download
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2.5 bg-[var(--vintage-cream)] rounded-full hover:bg-white transition-colors shadow-lg"
+                                title="Download"
+                              >
+                                <svg
+                                  className="w-4 h-4 text-[var(--vintage-brown)]"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                  />
+                                </svg>
+                              </a>
+                            </>
                           )}
                           <button
                             onClick={() => handleDelete(image.id)}
@@ -315,5 +341,13 @@ export function ImageGallery({ refreshTrigger }: ImageGalleryProps) {
         ))}
       </div>
     </div>
+
+    {/* Protection Proof Modal */}
+    <ProtectionProofModal
+      imageId={proofImageId || ""}
+      open={!!proofImageId}
+      onOpenChange={(open) => !open && setProofImageId(null)}
+    />
+    </>
   );
 }

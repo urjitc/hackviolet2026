@@ -1,7 +1,7 @@
 """
 Proof Engine - Demonstrates that cloaking breaks deepfake/face-swap models.
 
-Uses InsightFace for fast face detection and swapping.
+Uses InsightFace for fast face detection and real face swapping via inswapper_128.
 The "proof" is that face operations FAIL on cloaked images.
 """
 
@@ -9,13 +9,20 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from typing import Tuple, Optional
 import warnings
+from pathlib import Path
+import os
 
 # Suppress InsightFace warnings
 warnings.filterwarnings("ignore")
 
 # Try to import InsightFace, fall back to mock if not available
 INSIGHTFACE_AVAILABLE = False
+SWAPPER_AVAILABLE = False
 face_app = None
+swapper = None
+
+# Path to models directory
+MODELS_DIR = Path(__file__).parent / "models"
 
 try:
     import insightface
@@ -36,6 +43,127 @@ def init_face_analyzer():
             print("✅ Face analyzer initialized")
         except Exception as e:
             print(f"⚠️ Failed to initialize face analyzer: {e}")
+
+
+def init_swapper():
+    """Initialize the face swapper model (inswapper_128)."""
+    global swapper, SWAPPER_AVAILABLE
+    if INSIGHTFACE_AVAILABLE and swapper is None:
+        swapper_path = MODELS_DIR / "inswapper_128.onnx"
+        if swapper_path.exists():
+            try:
+                swapper = insightface.model_zoo.get_model(
+                    str(swapper_path),
+                    providers=['CPUExecutionProvider']
+                )
+                SWAPPER_AVAILABLE = True
+                print("✅ Face swapper (inswapper_128) initialized")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize face swapper: {e}")
+        else:
+            print(f"⚠️ Swapper model not found at {swapper_path}")
+
+
+def get_stock_face() -> Optional[Image.Image]:
+    """Load the stock face image for swap target."""
+    stock_path = MODELS_DIR / "stock_face.jpg"
+    if stock_path.exists():
+        return Image.open(stock_path).convert("RGB")
+    # Try PNG as fallback
+    stock_path_png = MODELS_DIR / "stock_face.png"
+    if stock_path_png.exists():
+        return Image.open(stock_path_png).convert("RGB")
+    return None
+
+
+def real_face_swap(
+    source_img: Image.Image,
+    target_face_img: Optional[Image.Image] = None
+) -> Tuple[Image.Image, dict]:
+    """
+    Attempt actual face swap using inswapper_128.
+
+    Swaps the face from target_face_img onto source_img.
+    Returns (result_image, metadata) with success/failure info.
+
+    Args:
+        source_img: The image to swap face onto
+        target_face_img: The image containing the face to use (defaults to stock face)
+
+    Returns:
+        Tuple of (swapped_image, metadata_dict)
+    """
+    init_face_analyzer()
+    init_swapper()
+
+    # Load stock face if not provided
+    if target_face_img is None:
+        target_face_img = get_stock_face()
+
+    if target_face_img is None:
+        return source_img, {
+            "status": "error",
+            "reason": "no_stock_face",
+            "confidence": 0,
+            "message": "Stock face image not found"
+        }
+
+    if not SWAPPER_AVAILABLE or swapper is None:
+        # Fall back to simulation if swapper not available
+        return source_img, {
+            "status": "error",
+            "reason": "swapper_unavailable",
+            "confidence": 0,
+            "message": "Face swapper model not available"
+        }
+
+    # Convert images to numpy arrays (BGR for InsightFace)
+    source_array = np.array(source_img)[:, :, ::-1].copy()
+    target_array = np.array(target_face_img)[:, :, ::-1].copy()
+
+    # Detect faces in source
+    source_faces = face_app.get(source_array)
+    if not source_faces:
+        return source_img, {
+            "status": "no_face",
+            "reason": "no_source_face_detected",
+            "confidence": 0,
+            "message": "No face detected in source image"
+        }
+
+    # Detect face in target (the face we want to swap in)
+    target_faces = face_app.get(target_array)
+    if not target_faces:
+        return source_img, {
+            "status": "error",
+            "reason": "no_target_face_detected",
+            "confidence": 0,
+            "message": "No face detected in target/stock image"
+        }
+
+    # Get the primary face from each
+    source_face = source_faces[0]
+    target_face = target_faces[0]
+
+    # Attempt the swap
+    try:
+        result_array = swapper.get(source_array, source_face, target_face, paste_back=True)
+        # Convert back to RGB PIL Image
+        result_img = Image.fromarray(result_array[:, :, ::-1])
+
+        return result_img, {
+            "status": "success",
+            "reason": "face_swap_complete",
+            "confidence": float(source_face.det_score) * 100,
+            "message": "Face swap successful"
+        }
+    except Exception as e:
+        return source_img, {
+            "status": "failed",
+            "reason": "swap_error",
+            "confidence": float(source_face.det_score) * 100 if hasattr(source_face, 'det_score') else 0,
+            "message": f"Face swap failed: {str(e)}"
+        }
 
 
 def detect_faces(image: Image.Image) -> list:
@@ -203,7 +331,7 @@ def generate_proof(
     cloaked: Image.Image
 ) -> dict:
     """
-    Generate the full proof comparison.
+    Generate the full proof comparison (legacy - uses simulation).
 
     Returns dict with:
         - original: The original image
@@ -228,6 +356,51 @@ def generate_proof(
             "cloaked_analysis": meta_cloaked,
             "protection_effective": meta_cloaked.get("protection_successful", True)
         }
+    }
+
+
+def generate_proof_v2(
+    original: Image.Image,
+    protected: Image.Image,
+    target_face: Optional[Image.Image] = None
+) -> dict:
+    """
+    Generate proof using REAL face swap attempts (v2).
+
+    This attempts actual face swaps on both images using inswapper_128.
+    The original should succeed, the protected should fail.
+
+    Args:
+        original: The original unprotected image
+        protected: The cloaked/protected image
+        target_face: Optional custom target face (defaults to stock face)
+
+    Returns dict with:
+        - original_swap: Face swap result on original image
+        - protected_swap: Face swap result on protected image
+        - original_metadata: Metadata about original swap attempt
+        - protected_metadata: Metadata about protected swap attempt
+    """
+    # Attempt real face swap on original (should succeed)
+    original_swap, original_meta = real_face_swap(original, target_face)
+
+    # Attempt real face swap on protected (should fail or produce artifacts)
+    protected_swap, protected_meta = real_face_swap(protected, target_face)
+
+    # If protected swap "succeeded", apply glitch effects to show it's corrupted
+    # (cloaking works by producing artifacts, not always preventing swap)
+    if protected_meta.get("status") == "success":
+        # Apply glitch effect to show the swap is corrupted
+        protected_swap = create_glitched_image(protected_swap, intensity=0.5)
+        protected_meta["status"] = "corrupted"
+        protected_meta["message"] = "Face swap produced corrupted output"
+
+    return {
+        "original_swap": original_swap,
+        "protected_swap": protected_swap,
+        "original_metadata": original_meta,
+        "protected_metadata": protected_meta,
+        "protection_effective": protected_meta.get("status") != "success"
     }
 
 

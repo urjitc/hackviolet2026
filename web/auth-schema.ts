@@ -108,6 +108,11 @@ export const imagePairs = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
+    // Proof-related columns for caching proof results
+    proofGeneratedAt: timestamp("proof_generated_at"),
+    proofOriginalSwapUrl: text("proof_original_swap_url"),
+    proofProtectedSwapUrl: text("proof_protected_swap_url"),
+    proofAnalysis: text("proof_analysis"), // JSON stringified Gemini analysis
   },
   (table) => [index("image_pairs_userId_idx").on(table.userId)]
 );

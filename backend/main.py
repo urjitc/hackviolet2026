@@ -19,7 +19,7 @@ from typing import Optional
 from pathlib import Path
 
 from cloak import cloak_image
-from proof import generate_proof
+from proof import generate_proof, generate_proof_v2
 from storage import (
     generate_id,
     save_upload,
@@ -60,7 +60,9 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "POST /cloak": "Apply cloaking to an image",
-            "POST /prove/{id}": "Generate proof of protection",
+            "POST /cloak/base64": "Apply cloaking to base64 image",
+            "POST /prove/{id}": "Generate proof of protection (simulated)",
+            "POST /prove/v2": "Generate proof with REAL face swap attempts",
             "GET /results/{id}": "Get proof images",
             "GET /health": "Health check",
         }
@@ -165,6 +167,49 @@ async def cloak_base64_endpoint(
 # ============================================================================
 # PROOF ENDPOINT - Shows that cloaking works
 # ============================================================================
+
+# NOTE: /prove/v2 must come BEFORE /prove/{session_id} for correct routing
+@app.post("/prove/v2")
+async def prove_v2_endpoint(
+    original: str = Form(...),
+    protected: str = Form(...),
+):
+    """
+    Generate proof using REAL face swap attempts (v2).
+
+    Accepts base64-encoded images directly from the web app.
+    Attempts actual face swaps on both images using inswapper_128.
+
+    - **original**: Base64-encoded original (unprotected) image
+    - **protected**: Base64-encoded protected/cloaked image
+
+    Returns base64-encoded swap results and metadata.
+    """
+    try:
+        # Decode base64 images
+        original_img = base64_to_image(original)
+        protected_img = base64_to_image(protected)
+
+        # Generate proof with real face swaps
+        proof_result = generate_proof_v2(original_img, protected_img)
+
+        # Convert result images to base64
+        original_swap_b64 = image_to_base64(proof_result["original_swap"])
+        protected_swap_b64 = image_to_base64(proof_result["protected_swap"])
+
+        return {
+            "status": "success",
+            "original_swap": original_swap_b64,
+            "protected_swap": protected_swap_b64,
+            "original_metadata": proof_result["original_metadata"],
+            "protected_metadata": proof_result["protected_metadata"],
+            "protection_effective": proof_result["protection_effective"],
+            "message": "🛡️ Proof generated with real face swap attempts!"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Proof generation failed: {str(e)}")
+
 
 @app.post("/prove/{session_id}")
 async def prove_endpoint(session_id: str):
