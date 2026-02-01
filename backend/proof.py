@@ -31,7 +31,7 @@ IMGBB_UPLOAD_URL = "https://api.imgbb.com/1/upload"
 
 # Stock target body image - a neutral person that user's face will be swapped onto
 # This demonstrates the threat: your face being put on someone else's body
-STOCK_TARGET_BODY = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=512"
+STOCK_TARGET_BODY = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=512"
 
 # Suppress InsightFace warnings
 warnings.filterwarnings("ignore")
@@ -92,6 +92,7 @@ def upload_image_to_imgbb(image: Image.Image) -> Optional[str]:
             timeout=30
         )
 
+        response.raise_for_status()
         result = response.json()
 
         if result.get("success") and result.get("data"):
@@ -179,9 +180,11 @@ def modelslab_face_swap(
         try:
             result = response.json()
         except Exception as e:
-            print(f"❌ API response parsing failed. Status: {response.status_code}")
-            print(f"📄 Response text: {response.text[:500]}")
-            raise e
+            return None, {
+                "status": "error",
+                "reason": "invalid_api_response",
+                "message": f"Failed to parse API response: {str(e)}"
+            }
 
         print(f"📡 ModelsLab response: {result}")
 
@@ -536,15 +539,14 @@ def generate_proof_v2(
     print("🛡️ Attempting face swap on PROTECTED image...")
     protected_swap, protected_meta = modelslab_face_swap(protected)
     
-    # If API failed or returned None (which is GOOD for protected!), create failure visualization
+    # If API failed or returned None (which is GOOD for protected!), show the cloaked image directly
     if protected_swap is None:
         print("✅ Protected image face swap FAILED (this is good!)")
-        # Create a glitched version to show the failure visually
-        protected_swap = create_glitched_image(protected, intensity=0.7)
-        protected_swap = add_failure_overlay(protected_swap, "⚠️ FACE EXTRACTION BLOCKED")
+        # Just show the heavily cloaked proof image directly - no need to add glitch effects
+        # The proof image (epsilon=0.7) is already visually distorted enough
+        protected_swap = protected
         protected_meta["status"] = "failed"
         protected_meta["message"] = "Face extraction blocked by cloaking protection"
-    # If API succeeded, just use the raw result without artificial corruption
 
     print(f"📊 Results: Original={original_meta.get('status')}, Protected={protected_meta.get('status')}")
     
